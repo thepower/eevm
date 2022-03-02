@@ -194,8 +194,7 @@ interp({_PC,callvalue}, #{stack:=Stack,value:=Value}=State) ->
   %io:format("==== [ callvalue ~.16B~n",[Value]),
   State#{stack=>[Value|Stack]};
 
-interp({_PC,caller}, #{stack:=Stack}=State) ->
-  Value=16#ffff,
+interp({_PC,caller}, #{stack:=Stack,caller:=Value}=State) ->
   %io:format("==== [ caller ~.16B ~n",[Value]),
   State#{stack=>[Value|Stack]};
 

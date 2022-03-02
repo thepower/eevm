@@ -15,6 +15,7 @@ run(Bytecode,Storage,State0) ->
                        cd => <<>>,
                        storage=>Storage,
                        memory=><<>>,
+                       caller=>16#ff,
                        value=>0,
                        code=>Bytecode
                       },State0),

@@ -4,11 +4,16 @@
 erc() ->
   Code = evm:load("erc.hex"),
   Code1= <<Code/binary,1024:256/big>>,
-  {done,{return,Code2},State}=evm:run(Code1,#{},#{value=>100,trace=>whereis(evm_tracer)}),
-  R=evm:run(Code2,State,#{trace=>self()},<<"transfer(address,uint256)">>,[16#FFFe,100]),
+  {done,{return,Code2},#{storage:=Stor}}=evm:run(Code1,#{},
+                                      #{gas=>100000,value=>0,trace=>whereis(evm_tracer)}),
+  R=evm:run(Code2,Stor,
+            #{gas=>100000,trace=>whereis(evm_tracer)},
+            <<"transfer(address,uint256)">>,
+            [16#FFF,100]),
   case R of 
     {done,{return,Bin},_} ->
-      io:format("RET ~s~n",[hex:encode(Bin)]);
+      io:format("Return\n"),
+      dump(0,Bin);
     _ ->
       ok
   end,
@@ -40,6 +45,9 @@ erc20() ->
 %      ok
 %  end,
 %  R.
+
+dump(_,<<>>) ->
+  ok;
 
 dump(Off,<<Bin:32/binary,Rest/binary>>) ->
   io:format("~4.16B    ~s~n",[Off,hex:encode(Bin)]),
