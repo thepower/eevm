@@ -135,7 +135,7 @@ interp({_PC,eq},#{stack:=[A,B|Stack]}=State) ->
   State#{stack=>[if A==B -> 1; true -> 0 end|Stack]};
 
 interp({_PC,lt},#{stack:=[A,B|Stack]}=State) ->
-  %io:format("lt 0x~.16B 0x~.16B~n",[A,B]),
+  io:format("lt 0x~.16B < 0x~.16B~n",[A,B]),
   State#{stack=>[if A<B -> 1; true -> 0 end|Stack]};
 
 %interp({_PC,slt},#{stack:=[A,B|Stack]}=State) ->
@@ -237,6 +237,7 @@ interp({_PC,mload},#{stack:=[Offset|Stack],memory:=RAM}=State) ->
 
 interp({_PC,mstore},#{stack:=[Ost,Val|Stack],memory:=RAM,gas:=Gas}=State) ->
   %io:format("mstore offset ~.16B val ~.16B~n",[Ost,Val]),
+  ?TRACE({mstore, {Ost,Val}}),
   RAM1=ram:write(RAM,Ost,<<Val:256/big>>),
   State#{stack=>Stack,gas=>Gas-1,memory=>RAM1};
 
