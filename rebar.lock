@@ -1,0 +1,19 @@
+{"1.2.0",
+[{<<"fs">>,{pkg,<<"fs">>,<<"6.1.1">>},1},
+ {<<"hex2bin">>,{pkg,<<"hex2bin">>,<<"1.0.0">>},1},
+ {<<"ksha3">>,
+  {git,"https://github.com/onyxrev/ksha3",
+       {ref,"42d593cfe7bdd8eba70caded507dd91c4546a36d"}},
+  0},
+ {<<"sync">>,
+  {git,"https://github.com/rustyio/sync.git",
+       {ref,"ba627f60704cc291a5c2940d1c79ff24a3249a0c"}},
+  0}]}.
+[
+{pkg_hash,[
+ {<<"fs">>, <<"9D147B944D60CFA48A349F12D06C8EE71128F610C90870BDF9A6773206452ED0">>},
+ {<<"hex2bin">>, <<"AAC26EAB998AE80EACEE1C7607C629AB503EBF77A62B9242BAE2B94D47DCB71E">>}]},
+{pkg_hash_ext,[
+ {<<"fs">>, <<"EF94E95FFE79916860649FED80AC62B04C322B0BB70F5128144C026B4D171F8B">>},
+ {<<"hex2bin">>, <<"E7012D1D9AADD26E680F0983D26FB8923707F05FAC9688F19F530FA3795E716F">>}]}
+].

@@ -1,21 +1,28 @@
 -module(scratchpad).
 -compile([export_all,nowarn_export_all]).
 
+decode() ->
+  Code = eevm:load("erc.hex"),
+  eevm_dec:decode(Code).
+ 
 erc() ->
-  Code = evm:load("erc.hex"),
+  Code = eevm:load("erc.hex"),
   Code1= <<Code/binary,1024:256/big>>,
-  {done,{return,Code2},#{storage:=Stor}}=evm:run(Code1,#{},
-                                      #{gas=>100000,
-                                        caller=>16#fff,
-                                        value=>0,
-                                        trace=>whereis(evm_tracer)}),
-  R=evm:run(Code2,Stor,
-            #{gas=>100000,
-              trace=>whereis(evm_tracer),
-              caller=>16#fff
-             },
-            <<"transfer(address,uint256)">>,
-            [16#FFe,100]),
+  {done,{return,Code2},#{storage:=Stor}}=eevm:run(
+                                           Code1,
+                                           #{},
+                                           #{gas=>100000,
+                                             caller=>16#fff,
+                                             value=>0,
+                                             trace=>whereis(eevm_tracer)}),
+  R=eevm:run(Code2,
+             Stor,
+             #{gas=>100000,
+               trace=>whereis(eevm_tracer),
+               caller=>16#fff
+              },
+             <<"transfer(address,uint256)">>,
+             [16#FFe,100]),
   case R of 
     {done,{return,Bin},_} ->
       io:format("Return\n"),
@@ -33,20 +40,21 @@ mkstring(Bin) when size(Bin)<32 ->
   <<Bin/binary,0:(PadL*8)/integer>>.
 
 revert() ->
-  case(whereis(evm_tracer)) of
+  case(whereis(eevm_tracer)) of
     PID when is_pid(PID) ->
-      evm_tracer ! {trace, "=============="};
+      eevm_tracer ! {trace, "=============="};
     _ -> ok
   end,
   Code =
 hex:decode("6c726576657274656420646174616000557f726576657274206d657373616765000000000000000000000000000000000000600052600e6000fd"),
-  Deploy=evm:run(Code,
-                 #{},
+  Deploy=eevm:run(Code,
+                 #{0=>1234,
+                  1=>2345},
                  #{
                    gas=>20024,
                    value=>0,
                    caller=>16#c0de,
-                   trace=>whereis(evm_tracer)}),
+                   trace=>whereis(eevm_tracer)}),
   io:format("MEMORY\n"),
   dump(0,maps:get(memory,element(3,Deploy))),
   Deploy.
@@ -56,53 +64,53 @@ bal() ->
   Code =
   hex:decode("608060405234801561001057600080fd5b506040516020806100fa833981016040525160005560c7806100336000396000f300"),
   Code0= <<Code/binary,1023:256/big>>,
-  case(whereis(evm_tracer)) of
+  case(whereis(eevm_tracer)) of
     PID when is_pid(PID) ->
-      evm_tracer ! {trace, "=============="};
+      eevm_tracer ! {trace, "=============="};
     _ -> ok
   end,
-  Deploy=evm:run(Code0,
+  Deploy=eevm:run(Code0,
                  #{},
                  #{
                    gas=>20024,
                    value=>0,
                    caller=>16#c0de,
-                   trace=>whereis(evm_tracer)}),
+                   trace=>whereis(eevm_tracer)}),
   io:format("MEMORY\n"),
   dump(0,maps:get(memory,element(3,Deploy))),
   {done, {return, Code1}, #{storage:=Stor}} = Deploy,
-  evm:run(Code1,
+  eevm:run(Code1,
           Stor,
                  #{
                    gas=>20024,
                    value=>0,
                    caller=>16#c0de,
-                   trace=>whereis(evm_tracer)}).
+                   trace=>whereis(eevm_tracer)}).
 
 
 
 erc20() ->
-  case(whereis(evm_tracer)) of
+  case(whereis(eevm_tracer)) of
     PID when is_pid(PID) ->
-      evm_tracer ! {trace, "=============="};
+      eevm_tracer ! {trace, "=============="};
     _ -> ok
   end,
-  Code = evm:load("ERC20.hex"),
+  Code = eevm:load("ERC20.hex"),
   CoinName=mkstring(<<"CoinName">>),
   CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary,CoinName/binary,CoinSym/binary,CoinName/binary,CoinSym/binary>>,
-  Deploy=evm:run(Code1,
+  Deploy=eevm:run(Code1,
                  #{},
                  #{
                    gas=>10,
                    value=>0,
                    caller=>16#c0de,
-                   trace=>whereis(evm_tracer)}),
+                   trace=>whereis(eevm_tracer)}),
   io:format("MEMORY\n"),
   dump(0,maps:get(memory,element(3,Deploy))),
   Deploy.
 %  {done,{return,Code2},State}=Deploy,
-%  R=evm:run(Code2,State,#{trace=>self()},<<"transfer(address,uint256)">>,[16#FFFe,100]),
+%  R=eevm:run(Code2,State,#{trace=>self()},<<"transfer(address,uint256)">>,[16#FFFe,100]),
 %  case R of 
 %    {done,{return,Bin},_} ->
 %      io:format("RET ~s~n",[hex:encode(Bin)]);

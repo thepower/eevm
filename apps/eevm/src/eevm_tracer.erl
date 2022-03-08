@@ -1,8 +1,8 @@
--module(tracer).
+-module(eevm_tracer).
 -export([run/0]).
 
 run() ->
-  register(evm_tracer,self()),
+  register(eevm_tracer,self()),
   loop().
 
 

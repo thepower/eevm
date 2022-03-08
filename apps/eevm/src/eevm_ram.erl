@@ -1,4 +1,4 @@
--module(ram).
+-module(eevm_ram).
 -export([read/3,write/3]).
 
 read(RAM,Offset,Len) when is_binary(RAM), is_integer(Offset), is_integer(Len) ->
