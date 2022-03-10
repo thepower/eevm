@@ -1,5 +1,5 @@
 -module(eevm_tracer).
--export([run/0]).
+-export([run/0,loop/0]).
 
 run() ->
   register(eevm_tracer,self()),
@@ -12,10 +12,10 @@ loop() ->
       io:format("Stack ~p~n",[Stack]),
       loop();
     {trace, {opcode, {PC, {push,_,Val}}}} ->
-      io:format("\t~.16B op {push,~p} (~.16B)~n",[PC,Val,Val]),
+      io:format("\t@~.16B op {push,~p} (~.16B)~n",[PC,Val,Val]),
       loop();
     {trace, {opcode, {PC, Code}}} ->
-      io:format("\t~.16B op ~p~n",[PC,Code]),
+      io:format("\t@~.16B op ~p~n",[PC,Code]),
       loop();
     {trace, {jumpi, {To, Cond}}} ->
       io:format("Jump to ~.16B cond ~p~n",[To, Cond]),
@@ -25,7 +25,7 @@ loop() ->
       loop();
     {trace, Other} ->
       io:format("Trace ~p~n",[Other]),
-      loop();
+      ?MODULE:loop();
     Other ->
       io:format("Other: ~p~n",[Other])
   end.
