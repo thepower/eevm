@@ -97,7 +97,6 @@ tether() ->
   Code = eevm:load("testdata/TetherToken.hex"),
   CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary,(131072):256/big,CoinSym/binary,CoinSym/binary,3:256/big>>,
-  eevm_tracer ! {trace, "=======[deploy]======="},
   Deploy=eevm:eval(Code1,
                  #{},
                  #{
@@ -171,7 +170,6 @@ coin() ->
   Code = eevm:load("testdata/Coin.hex"),
   %CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary>>,
-  eevm_tracer ! {trace, "=======[deploy]======="},
   Deploy=eevm:eval(Code1,
                  #{},
                  #{
@@ -185,7 +183,6 @@ coin() ->
   {done,{return,Code2},#{storage:=Stor}}=Deploy,
   io:format("St1 ~p~n",[Stor]),
 
-  eevm_tracer ! {trace, "=======[r1]======= "},
   {done,stop,#{storage:=St2}}=eevm:eval(Code2,
               Stor,
               #{trace=>Trace,
@@ -195,7 +192,6 @@ coin() ->
               [16#100,100]),
   io:format("St2 ~p~n",[St2]),
 
-  eevm_tracer ! {trace, "=======[r2]======= "},
   {done,stop,#{storage:=St3}}=eevm:eval(Code2,
               St2,
               #{trace=>Trace,
@@ -205,7 +201,6 @@ coin() ->
               [16#200,200]),
   io:format("St3 ~p~n",[St3]),
 
-  eevm_tracer ! {trace, "=======[r3]======= "},
   {done,stop,#{storage:=St4}}=eevm:eval(Code2,
               St3,
               #{trace=>Trace,
