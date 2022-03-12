@@ -35,25 +35,25 @@ eval(Bytecode,Storage,State0) ->
 
 eval(Bytecode,Storage,State0,Function,Args) ->
     IFun = fun(B) -> {ok,E}=ksha3:hash(256, B), <<X:32/big,_/binary>> = E,X end(Function),
-    [FunName,Args1,_]=binary:split(Function,[<<"(">>,<<")">>],[global]),
-    ArgTypes=binary:split(Args1,<<",">>,[global]),
-    if(Args==[]) ->
-        io:format("size ~.16B ~B call ~s (~.16B)~n\t ~s(~p) ~n",[
-                                                                 size(Bytecode),
-                                                                 size(Bytecode),
-                                                                 Function,
-                                                                 IFun,
-                                                                 FunName,
-                                                                 []]);
-      true ->
-        io:format("size ~.16B ~B call ~s (~.16B)~n\t ~s(~p) ~n",[
-                                                                 size(Bytecode),
-                                                                 size(Bytecode),
-                                                                 Function,
-                                                                 IFun,
-                                                                 FunName,
-                                                                 lists:zip(ArgTypes,Args)])
-    end,
+%    [FunName,Args1,_]=binary:split(Function,[<<"(">>,<<")">>],[global]),
+%    ArgTypes=binary:split(Args1,<<",">>,[global]),
+%    if(Args==[]) ->
+%        io:format("size ~.16B ~B call ~s (~.16B)~n\t ~s(~p) ~n",[
+%                                                                 size(Bytecode),
+%                                                                 size(Bytecode),
+%                                                                 Function,
+%                                                                 IFun,
+%                                                                 FunName,
+%                                                                 []]);
+%      true ->
+%        io:format("size ~.16B ~B call ~s (~.16B)~n\t ~s(~p) ~n",[
+%                                                                 size(Bytecode),
+%                                                                 size(Bytecode),
+%                                                                 Function,
+%                                                                 IFun,
+%                                                                 FunName,
+%                                                                 lists:zip(ArgTypes,Args)])
+%    end,
     CallData = lists:foldl(
                  fun(Arg,Acc) ->
                      <<Acc/binary,Arg:256/big>>

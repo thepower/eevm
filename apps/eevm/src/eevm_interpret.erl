@@ -7,6 +7,8 @@
                               PID ! {trace, Code};
                             undefined -> ok
                           end end()).
+-define(MEM_WORDS(Bin), ((size(Bin) + 31) div 32)).
+-define(CMEM, fun() -> NewWords=(?MEM_WORDS(RAM1)-?MEM_WORDS(RAM)),(NewWords*NewWords)+(3*NewWords) end()).
 
 run(#{code:=Code}=State) ->
   run_next(0,Code,State).
@@ -85,171 +87,173 @@ interp(stop,State) ->
          fin=>stop
         };
 
-interp(shr,#{stack:=[Off,A|Stack]}=State) ->
+interp(shr,#{stack:=[Off,A|Stack], gas:=G}=State) ->
   Sh=A bsr Off,
-  State#{stack=>[Sh|Stack]};
+  State#{stack=>[Sh|Stack], gas=>G-3};
 
-interp(shl,#{stack:=[Off,A|Stack]}=State) ->
+interp(shl,#{stack:=[Off,A|Stack], gas:=G}=State) ->
   Sh=A bsl Off,
-  State#{stack=>[Sh|Stack]};
+  State#{stack=>[Sh|Stack], gas=>G-3};
 
-interp('not',#{stack:=[A|Stack]}=State) ->
+interp('not',#{stack:=[A|Stack], gas:=G}=State) ->
   Not=bnot A,
   %?TRACE({'not', Not}),
-  State#{stack=>[Not|Stack]};
+  State#{stack=>[Not|Stack], gas=>G-3};
 
-interp('and',#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[A band B|Stack]};
+interp('and',#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[A band B|Stack], gas=>G-3};
 
-interp('or',#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[A bor B|Stack]};
+interp('or',#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[A bor B|Stack], gas=>G-3};
 
-interp('div',#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[A div B|Stack]};
+interp('div',#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[A div B|Stack], gas=>G-5};
 
-interp(sub,#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[A - B|Stack]};
+interp(sub,#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[A - B|Stack], gas=>G-3};
 
-interp(mul,#{stack:=[A,B|Stack]}=State) ->
+interp(mul,#{stack:=[A,B|Stack], gas:=G}=State) ->
   Res=A*B,
-  State#{stack=>[Res|Stack]};
+  State#{stack=>[Res|Stack], gas=>G-5};
 
-interp(add,#{stack:=[A,B|Stack]}=State) ->
+interp(add,#{stack:=[A,B|Stack], gas:=G}=State) ->
   Res=A+B,
-  State#{stack=>[Res|Stack]};
+  State#{stack=>[Res|Stack],gas=>G-3};
 
-interp(eq,#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[if A==B -> 1; true -> 0 end|Stack]};
+interp(eq,#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[if A==B -> 1; true -> 0 end|Stack], gas=>G-3};
 
-interp(lt,#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[if A<B -> 1; true -> 0 end|Stack]};
+interp(lt,#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[if A<B -> 1; true -> 0 end|Stack], gas=>G-3};
 
-interp(slt,#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[if A<B -> 1; true -> 0 end|Stack]};
+interp(slt,#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[if A<B -> 1; true -> 0 end|Stack], gas=>G-3};
 
-interp(gt,#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[if A>B -> 1; true -> 0 end|Stack]};
+interp(gt,#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[if A>B -> 1; true -> 0 end|Stack], gas=>G-3};
 
-interp({swap,1},#{stack:=[A,B|Stack]}=State) ->
-  State#{stack=>[B,A|Stack]};
+interp({swap,1},#{stack:=[A,B|Stack], gas:=G}=State) ->
+  State#{stack=>[B,A|Stack], gas=>G-3};
 
-interp({swap,2},#{stack:=[A,X1,B|Stack]}=State) ->
-  State#{stack=>[B,X1,A|Stack]};
+interp({swap,2},#{stack:=[A,X1,B|Stack], gas:=G}=State) ->
+  State#{stack=>[B,X1,A|Stack], gas=>G-3};
 
-interp({swap,3},#{stack:=[A,X1,X2,B|Stack]}=State) ->
-  State#{stack=>[B,X1,X2,A|Stack]};
+interp({swap,3},#{stack:=[A,X1,X2,B|Stack], gas:=G}=State) ->
+  State#{stack=>[B,X1,X2,A|Stack], gas=>G-3};
 
-interp({swap,4},#{stack:=[A,X1,X2,X3,B|Stack]}=State) ->
-  State#{stack=>[B,X1,X2,X3,A|Stack]};
+interp({swap,4},#{stack:=[A,X1,X2,X3,B|Stack], gas:=G}=State) ->
+  State#{stack=>[B,X1,X2,X3,A|Stack], gas=>G-3};
 
-interp({swap,5},#{stack:=[A,X1,X2,X3,X4,B|Stack]}=State) ->
-  State#{stack=>[B,X1,X2,X3,X4,A|Stack]};
+interp({swap,5},#{stack:=[A,X1,X2,X3,X4,B|Stack], gas:=G}=State) ->
+  State#{stack=>[B,X1,X2,X3,X4,A|Stack], gas=>G-3};
 
-interp({dup,N},#{stack:=Stack}=State) ->
+interp({dup,N},#{stack:=Stack, gas:=G}=State) ->
   Val=lists:nth(N,Stack),
   Stack1=[Val|Stack],
-  State#{stack=>Stack1};
+  State#{stack=>Stack1, gas=>G-3};
 
-interp(exp,#{stack:=[A,B|Stack]}=State) ->
+interp(exp,#{stack:=[A,B|Stack], gas:=G}=State) ->
   Res=trunc(math:pow(A,B)),
-  State#{stack=>[Res|Stack]};
+  State#{stack=>[Res|Stack], gas=>G-10};
 
-interp(iszero,#{stack:=[A|Stack]}=State) ->
+interp(iszero,#{stack:=[A|Stack], gas:=G}=State) ->
   State#{stack=>[if A==0 -> 1;
                     true -> 0 
-                 end|Stack]};
+                 end|Stack], gas=>G-3};
 
-interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM}=State) ->
+interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM, gas:=G}=State) ->
   RamData=eevm_ram:read(RAM,Off,Len),
   Hash=crypto:hash(sha256,RamData),
   Value = binary:decode_unsigned(Hash),
   ?TRACE({sha3, {Len,Off,RamData,Hash}}),
-  State#{stack=>[Value|Stack]};
+  Gas=30+(6*((Len+31) div 32)),
+  State#{stack=>[Value|Stack], gas=>G-Gas};
 
-interp(callvalue, #{stack:=Stack,value:=Value}=State) ->
-  State#{stack=>[Value|Stack]};
+interp(callvalue, #{stack:=Stack,value:=Value, gas:=G}=State) ->
+  State#{stack=>[Value|Stack], gas=>G-2};
 
-interp(caller, #{stack:=Stack,caller:=Value}=State) ->
-  State#{stack=>[Value|Stack]};
+interp(caller, #{stack:=Stack,caller:=Value, gas:=G}=State) ->
+  State#{stack=>[Value|Stack], gas=>G-2};
 
-interp(calldataload, #{stack:=[I|Stack],cd:=CD}=State) ->
+interp(calldataload, #{stack:=[I|Stack], gas:=G,cd:=CD}=State) ->
   BValue = eevm_ram:read(CD,I,32),
   Value = binary:decode_unsigned(BValue),
   ?TRACE({calldataload, {I,32,BValue,Value}}),
-  State#{stack=>[Value|Stack]};
+  State#{stack=>[Value|Stack], gas=>G-2};
 
-interp(calldatasize, #{stack:=Stack,cd:=CD}=State) ->
+interp(calldatasize, #{stack:=Stack,cd:=CD, gas:=G}=State) ->
   Value=size(CD),
-  State#{stack=>[Value|Stack]};
+  State#{stack=>[Value|Stack], gas=>G-2};
 
-interp(codesize, #{stack:=Stack,code:=Code}=State) ->
+interp(codesize, #{stack:=Stack,code:=Code, gas:=G}=State) ->
   Value=size(Code),
-  State#{stack=>[Value|Stack]};
+  State#{stack=>[Value|Stack], gas=>G-3};
 
-interp({push,_,Value},#{stack:=Stack}=State) ->
-  State#{stack=>[Value|Stack]};
+interp({push,_,Value},#{stack:=Stack, gas:=G}=State) ->
+  State#{stack=>[Value|Stack], gas=>G-3};
 
-interp(codecopy,#{stack:=[RAMOff,CodeOff,Len|Stack],memory:=RAM,code:=Code}=State) ->
+interp(codecopy,#{stack:=[RAMOff,CodeOff,Len|Stack], gas:=G,memory:=RAM,code:=Code}=State) ->
   Value=eevm_ram:read(Code,CodeOff,Len),
   RAM1=eevm_ram:write(RAM,RAMOff,Value),
   ?TRACE({codecopy, {Len,CodeOff,RAMOff,Value}}),
-  State#{stack=>Stack,memory=>RAM1};
+  Gas=3+(3*((Len+31 div 32))) + ?CMEM,
+  State#{stack=>Stack,memory=>RAM1, gas=>G-Gas};
 
-interp(mload,#{stack:=[Offset|Stack],memory:=RAM}=State) ->
+interp(mload,#{stack:=[Offset|Stack],memory:=RAM, gas:=G}=State) ->
   Value=binary:decode_unsigned(eevm_ram:read(RAM,Offset,32)),
   ?TRACE({mload, {Offset,Value}}),
-  State#{stack=>[Value|Stack]};
+  State#{stack=>[Value|Stack], gas=>G-3};
 
-interp(mstore,#{stack:=[Offset,Val|Stack],memory:=RAM,gas:=Gas}=State) ->
+interp(mstore,#{stack:=[Offset,Val|Stack],memory:=RAM, gas:=G}=State) ->
   ?TRACE({mstore, {Offset,Val}}),
   RAM1=eevm_ram:write(RAM,Offset,<<Val:256/big>>),
-  State#{stack=>Stack,gas=>Gas-1,memory=>RAM1};
+  Gas=3+?CMEM,
+  State#{stack=>Stack,memory=>RAM1, gas=>G-Gas};
 
 interp(sstore,#{stack:=[Key,Value|Stack], storage:=Storage, gas:=G}=State) ->
   St1=maps:put(Key,Value,Storage),
-  GD=case {maps:is_key(Key,Storage),Value=/=0} of
+  Gas=case {maps:is_key(Key,Storage),Value=/=0} of
        {false,true} ->
-         -20000;
+         20000;
        {true,true} ->
-         -5000;
+         5000;
        {false,false} ->
          0;
        {true,false} ->
-         +15000
+         -15000
      end,
-  G2=G+GD,
-  ?TRACE({sstore, {Key,Value,GD}}),
-  State#{stack=>Stack,storage=>St1,gas=>G2};
+  ?TRACE({sstore, {Key,Value,Gas}}),
+  State#{stack=>Stack,storage=>St1,gas=>G-Gas};
 
-interp(sload,#{stack:=[Key|Stack],storage:=Storage}=State) ->
+interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G}=State) ->
   Value=maps:get(Key,Storage,0),
   ?TRACE({sload, {Key,Value}}),
-  State#{stack=>[Value|Stack]};
+  State#{stack=>[Value|Stack],gas=>G-800};
 
-interp({log,0},#{stack:=[Offset,Len|Stack],memory:=RAM,logger:=Logger}=State) ->
+interp({log,0},#{stack:=[Offset,Len|Stack],memory:=RAM,logger:=Logger, gas:=G}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Logger(BValue,[]),
-  State#{stack=>Stack};
+  State#{stack=>Stack,gas=>G-375};
 
-interp({log,1},#{stack:=[Offset,Len,Topic0|Stack],memory:=RAM,logger:=Logger}=State) ->
+interp({log,1},#{stack:=[Offset,Len,Topic0|Stack],memory:=RAM,logger:=Logger, gas:=G}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Logger(BValue,[Topic0]),
-  State#{stack=>Stack};
+  State#{stack=>Stack,gas=>G-750};
 
-interp({log,2},#{stack:=[Offset,Len,Topic0,Topic1|Stack],memory:=RAM,logger:=Logger}=State) ->
+interp({log,2},#{stack:=[Offset,Len,Topic0,Topic1|Stack],memory:=RAM,logger:=Logger, gas:=G}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Logger(BValue,[Topic0,Topic1]),
-  State#{stack=>Stack};
+  State#{stack=>Stack,gas=>G-1125};
 
-interp({log,3},#{stack:=[Offset,Len,Topic0,Topic1, Topic2|Stack],memory:=RAM,logger:=Logger}=State) ->
+interp({log,3},#{stack:=[Offset,Len,Topic0,Topic1, Topic2|Stack],memory:=RAM,logger:=Logger, gas:=G}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Logger(BValue,[Topic0,Topic1,Topic2]),
-  State#{stack=>Stack};
+  State#{stack=>Stack,gas=>G-1500};
 
-interp({log,4},#{stack:=[Offset,Len,Topic0,Topic1, Topic2, Topic3|Stack],memory:=RAM,logger:=Logger}=State) ->
+interp({log,4},#{stack:=[Offset,Len,Topic0,Topic1, Topic2, Topic3|Stack],memory:=RAM,logger:=Logger, gas:=G}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Logger(BValue,[Topic0,Topic1,Topic2,Topic3]),
-  State#{stack=>Stack};
+  State#{stack=>Stack,gas=>G-1875};
 
 interp(Instr,_State) ->
   {error,{bad_instruction,Instr}}.
