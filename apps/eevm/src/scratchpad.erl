@@ -2,7 +2,7 @@
 -compile([export_all,nowarn_export_all]).
 
 erc() ->
-  Code = eevm:load("erc.hex"),
+  Code = eevm:load("testdata/erc.hex"),
   Code1= <<Code/binary,1024:256/big>>,
   {done,
    {return,Code2},
@@ -94,7 +94,7 @@ tether() ->
           _ ->
             undefined
         end,
-  Code = eevm:load("TetherToken.hex"),
+  Code = eevm:load("testdata/TetherToken.hex"),
   CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary,(131072):256/big,CoinSym/binary,CoinSym/binary,3:256/big>>,
   eevm_tracer ! {trace, "=======[deploy]======="},
@@ -168,7 +168,7 @@ coin() ->
           _ ->
             undefined
         end,
-  Code = eevm:load("Coin.hex"),
+  Code = eevm:load("testdata/Coin.hex"),
   %CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary>>,
   eevm_tracer ! {trace, "=======[deploy]======="},
@@ -223,7 +223,7 @@ erc20() ->
       eevm_tracer ! {trace, "=============="};
     _ -> ok
   end,
-  Code = eevm:load("ERC20.hex"),
+  Code = eevm:load("testdata/ERC20.hex"),
   CoinName=mkstring(<<"CoinName">>),
   CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary,CoinName/binary,CoinSym/binary,CoinName/binary,CoinSym/binary>>,
