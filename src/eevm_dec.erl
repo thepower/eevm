@@ -63,11 +63,12 @@ decode(<<16#5b, Rest/binary>>) -> {jumpdest,Rest};
 
 decode(<<Push, Rest/binary>>) when Push>=16#60 andalso Push<16#80 ->
   Len=Push-16#5F,
+  Len8=Len*8,
   if(size(Rest)>=Len) ->
-      <<Arg:(Len*8)/big,Rest1/binary>> = Rest,
+      <<Arg:Len8/big,Rest1/binary>> = Rest,
       {{push,Len,Arg},Rest1,1+Len};
     true ->
-      <<Arg:(Len*8)/big>> = <<Rest/binary,0:((Len-size(Rest))*8)/big>>,
+      <<Arg:Len8/big>> = <<Rest/binary,0:((Len-size(Rest))*8)/big>>,
       {{push,Len,Arg},<<>>,1+Len}
   end;
 

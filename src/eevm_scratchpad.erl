@@ -1,8 +1,13 @@
--module(scratchpad).
+-module(eevm_scratchpad).
 -compile([export_all,nowarn_export_all]).
 
+load(Filename) ->
+  {ok, ERC20Hex } = file:read_file(Filename),
+  [ H | _ ] = binary:split(ERC20Hex, <<"\n">>),
+  hex:decode(H).
+
 erc() ->
-  Code = eevm:load("testdata/erc.hex"),
+  Code = load("testdata/erc.hex"),
   Code1= <<Code/binary,1024:256/big>>,
   {done,
    {return,Code2},
@@ -94,7 +99,7 @@ tether() ->
           _ ->
             undefined
         end,
-  Code = eevm:load("testdata/TetherToken.hex"),
+  Code = load("testdata/TetherToken.hex"),
   CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary,(131072):256/big,CoinSym/binary,CoinSym/binary,3:256/big>>,
   Deploy=eevm:eval(Code1,
@@ -167,7 +172,7 @@ coin() ->
           _ ->
             undefined
         end,
-  Code = eevm:load("testdata/Coin.hex"),
+  Code = load("testdata/Coin.hex"),
   %CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary>>,
   Deploy=eevm:eval(Code1,
@@ -218,7 +223,7 @@ erc20() ->
       eevm_tracer ! {trace, "=============="};
     _ -> ok
   end,
-  Code = eevm:load("testdata/ERC20.hex"),
+  Code = load("testdata/ERC20.hex"),
   CoinName=mkstring(<<"CoinName">>),
   CoinSym=mkstring(<<"CoinSym">>),
   Code1= <<Code/binary,CoinName/binary,CoinSym/binary,CoinName/binary,CoinSym/binary>>,

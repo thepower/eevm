@@ -11,15 +11,15 @@ It still in alpha status, and it's definitely not production ready yet.
 # How to run
 
 ```
-./rebar3 compile
+./rebar3 shell
 ```
 
-You get in Erlang shell. In shell you can run tests from scratchpad.erl, look at the code in scratchpad and play with it. You can start playing with `scratchpad:tether().`, it's USDT ERC20 contract stolen from ETH.
+You get in Erlang shell. In shell you can run tests from eevm_scratchpad.erl, look at the code in eevm_scratchpad and play with it. You can start playing with `eevm_scratchpad:tether().`, it's USDT ERC20 contract stolen from ETH.
 
 After doing this you will get something like this
 
 ```
-> scratchpad:tether().
+> eevm_scratchpad:tether().
 St1 #{0 => 49374,1 => 131072,3 => 0,4 => 0,7 => 0,8 => 0,9 => 3,10 => 0,
       67310910001236471336487740600394280602614355732742098307022882807426235821668 =>
           131072}
@@ -53,7 +53,7 @@ Bals 130973/5/94
 
 Here you can see St1 - it's contract's storage after deployment, Bals lines is returning value of balanceOf call for 3 address used in test. LOG lines is emited by smartcontract data. Also you can see final state after 3 transcations finished.
 
-If you like to do automatic code recompilation after editing, you can start sync by issuing `sync:go().` in shell.
+If you like to do automatic code recompilation after editing, you can uncomment sync dep in rebar.config before building and start sync by issuing `sync:go().` in shell.
 
 ## TO FIX
 

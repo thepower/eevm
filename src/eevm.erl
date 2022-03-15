@@ -1,7 +1,7 @@
 -module(eevm).
 -behaviour(application).
 
--export([eval/3,eval/5,load/1]).
+-export([eval/3,eval/5]).
 
 -export([start/2, stop/1]).
 
@@ -10,11 +10,6 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) ->
     ok.
-
-load(Filename) ->
-  {ok, ERC20Hex } = file:read_file(Filename),
-  [ H | _ ] = binary:split(ERC20Hex, <<"\n">>),
-  hex:decode(H).
 
 eval(Bytecode,Storage,State0) ->
   Logger=fun(Message,Args) ->
