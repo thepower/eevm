@@ -3,7 +3,7 @@
 
 -export([eval/3,eval/5]).
 
--export([start/2, stop/1]).
+-export([start/0,start/2, stop/1]).
 
 start() ->
   application:start(eevm).
