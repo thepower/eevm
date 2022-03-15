@@ -24,6 +24,7 @@ stop(_State) ->
              'value'=>integer(),
              'caller':=integer(),
              'cd'=>binary(),
+             'sload'=>function(),
              'trace'=>pid()|undefined
             }) ->
   {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{

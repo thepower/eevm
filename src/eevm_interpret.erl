@@ -16,6 +16,7 @@
             value:=integer(),
             caller:=binary(),
             cd:=binary(),
+            sload=>function(),
             trace=>pid()|undefined
             }) ->
   {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{
@@ -236,6 +237,19 @@ interp(sstore,#{stack:=[Key,Value|Stack], storage:=Storage, gas:=G}=State) ->
      end,
   ?TRACE({sstore, {Key,Value,Gas}}),
   State#{stack=>Stack,storage=>St1,gas=>G-Gas};
+
+%in case of sload function defined we can load data from external database
+interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G, sload:=LoadFun}=State) ->
+  case maps:is_key(Key, Storage) of
+    true ->
+      Value=maps:get(Key,Storage,0),
+      ?TRACE({sload, {Key,Value}}),
+      State#{stack=>[Value|Stack],gas=>G-100};
+    false ->
+      Value=LoadFun(Key),
+      ?TRACE({sload, {Key,Value}}),
+      State#{stack=>[Value|Stack],storage=>maps:put(Key,Value,Storage),gas=>G-2100}
+  end;
 
 interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G}=State) ->
   Value=maps:get(Key,Storage,0),
