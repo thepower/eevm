@@ -5,6 +5,9 @@
 
 -export([start/2, stop/1]).
 
+start() ->
+  application:start(eevm).
+
 start(_StartType, _StartArgs) ->
     eevm_sup:start_link().
 
