@@ -10,6 +10,22 @@
 -define(MEM_WORDS(Bin), ((size(Bin) + 31) div 32)).
 -define(CMEM, fun() -> NewWords=(?MEM_WORDS(RAM1)-?MEM_WORDS(RAM)),(NewWords*NewWords)+(3*NewWords) end()).
 
+-spec run(#{'code':=binary(), 'gas':=integer(), 'stack':=list(), 'memory':=binary(),
+            storage:=map(),
+            logger=>function(),
+            value:=integer(),
+            caller:=binary(),
+            cd:=binary(),
+            trace=>pid()|undefined
+            }) ->
+  {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{
+                                                                 gas:=integer(),
+                                                                 storage:=#{},
+                                                                 memory:=binary() }}
+  |
+  {'error', 'nogas'|{'jump_to',integer()}|{'bad_instruction',any()}, #{
+                                                                       memory:=binary()
+                                                                      }}.
 run(#{code:=Code}=State) ->
   run_next(0,Code,State).
 
@@ -26,7 +42,7 @@ run_next(PC, Code, #{gas:=Gas,stack:=Stack}=State) ->
                          end,
       ?TRACE({opcode, {PC, Inst}}),
       case interp(Inst,State) of
-        #{fin:=Reason}=S2 ->
+        {fin, Reason, S2} ->
           {done,Reason,S2};
         {goto,Dst,S2} ->
           <<_:Dst/binary,JmpOpcode:8/integer,NewCode/binary>> =maps:get(code,State),
@@ -40,9 +56,9 @@ run_next(PC, Code, #{gas:=Gas,stack:=Stack}=State) ->
           end;
         {return, Data, S2} ->
           {done,{return,Data},S2};
-        {error, Reason} ->
-          {error, Reason, State};
-        S2 ->
+        {error,{bad_instruction,_}=Reason,State} ->
+          {error,Reason,State};
+        S2 when is_map(S2) ->
           run_next(NextPC,Rest,S2)
       end
   end.
@@ -73,19 +89,15 @@ interp(jumpi,#{stack:=[Dst,1|Stack]}=State) ->
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
   Value=eevm_ram:read(RAM,MemOff,MemLen),
   ?TRACE({revert, Value}),
-  State#{stack=>[0|Stack],
-         fin=>{revert,Value}
-        };
+  {fin,{revert,Value},
+   State#{stack=>[0|Stack]}
+  };
 
 interp(invalid,State) ->
-  State#{
-         fin=>invalid
-        };
+  {fin, invalid, State};
 
 interp(stop,State) ->
-  State#{
-         fin=>stop
-        };
+  {fin, stop, State};
 
 interp(shr,#{stack:=[Off,A|Stack], gas:=G}=State) ->
   Sh=A bsr Off,
@@ -158,7 +170,7 @@ interp(exp,#{stack:=[A,B|Stack], gas:=G}=State) ->
 
 interp(iszero,#{stack:=[A|Stack], gas:=G}=State) ->
   State#{stack=>[if A==0 -> 1;
-                    true -> 0 
+                    true -> 0
                  end|Stack], gas=>G-3};
 
 interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM, gas:=G}=State) ->
@@ -255,6 +267,6 @@ interp({log,4},#{stack:=[Offset,Len,Topic0,Topic1, Topic2, Topic3|Stack],memory:
   Logger(BValue,[Topic0,Topic1,Topic2,Topic3]),
   State#{stack=>Stack,gas=>G-1875};
 
-interp(Instr,_State) ->
-  {error,{bad_instruction,Instr}}.
+interp(Instr,State) ->
+  {error,{bad_instruction,Instr},State}.
 

@@ -14,6 +14,28 @@ start(_StartType, _StartArgs) ->
 stop(_State) ->
     ok.
 
+% {done, [stop|invalid|{revert,Err}|{return,Data}], State1}¶
+% {error,[nogas|{jump_to,Dst}|{bad_instruction,Instr}], State1}¶
+
+-spec eval(Bytecode :: binary(),
+           Storage :: map(),
+           #{'gas':=integer(),
+             'logger'=>function(),
+             'value'=>integer(),
+             'caller':=integer(),
+             'cd'=>binary(),
+             'trace'=>pid()|undefined
+            }) ->
+  {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{
+                                                                 gas:=integer(),
+                                                                 storage:=#{},
+                                                                 memory:=binary() }}
+  |
+  {'error', 'nogas'|{'jump_to',integer()}|{'bad_instruction',any()}, #{
+                                                                       memory:=binary()
+                                                                      }}.
+
+
 eval(Bytecode,Storage,State0) ->
   Logger=fun(Message,Args) ->
              io:format("LOG: ~p~n\targs ~p~n",[Message,Args])
