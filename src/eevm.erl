@@ -21,10 +21,19 @@ stop(_State) ->
            Storage :: map(),
            #{'gas':=integer(),
              'logger'=>function(),
-             'value'=>integer(),
-             'caller':=integer(),
+             'data':=#{
+                       'address'=>integer(),
+                       'callvalue'=>integer(),
+                       'caller'=>integer(),
+                       'gasprice'=>integer(),
+                       'origin'=>integer()
+                      },
              'cd'=>binary(),
              'sload'=>function(),
+             'get'=>#{
+                      'balance'=>function(),
+                      'code'=>function()
+                     },
              'trace'=>pid()|undefined
             }) ->
   {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{
@@ -41,17 +50,25 @@ eval(Bytecode,Storage,State0) ->
   Logger=fun(Message,Args) ->
              io:format("LOG: ~p~n\targs ~p~n",[Message,Args])
          end,
+  Data=maps:merge(
+         #{
+           address=>16#101,
+           callvalue=>0,
+           caller=>16#102,
+           gasprice=>10,
+           origin=>16#102
+          },
+         maps:get(data,State0,#{})
+        ),
     State=maps:merge(#{
                        stack=>[],
                        gas=>0,
                        cd => <<>>,
                        storage=>Storage,
                        memory=><<>>,
-                       caller=>16#ff,
-                       value=>0,
                        code=>Bytecode,
                        logger=>Logger
-                      },State0),
+                      },State0#{data=>Data}),
     eevm_interpret:run(State).
 
 eval(Bytecode,Storage,State0,Function,Args) ->

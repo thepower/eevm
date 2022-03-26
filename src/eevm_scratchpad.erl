@@ -16,14 +16,18 @@ erc() ->
       Code1,
       #{},
       #{gas=>100000,
-        caller=>16#fff,
-        value=>0,
+        data=>#{
+                caller=>16#fff,
+                callvalue=>0
+               },
         trace=>whereis(eevm_tracer)}),
   R=eevm:eval(Code2,
              Stor,
              #{gas=>100000,
                trace=>whereis(eevm_tracer),
-               caller=>16#fff
+               data=>#{
+                       caller=>16#fff
+                      }
               },
              <<"transfer(address,uint256)">>,
              [16#FFe,100]),
@@ -56,8 +60,10 @@ hex:decode("6c726576657274656420646174616000557f726576657274206d6573736167650000
                   1=>2345},
                  #{
                    gas=>20024,
-                   value=>0,
-                   caller=>16#c0de,
+                   data=>#{
+                           callvalue=>0,
+                           caller=>16#c0de
+                          },
                    trace=>whereis(eevm_tracer)}),
   io:format("MEMORY\n"),
   dump(0,maps:get(memory,element(3,Deploy))),
@@ -77,8 +83,10 @@ bal() ->
                  #{},
                  #{
                    gas=>20024,
-                   value=>0,
-                   caller=>16#c0de,
+                   data=>#{
+                           callvalue=>0,
+                           caller=>16#c0de
+                          },
                    trace=>whereis(eevm_tracer)}),
   io:format("MEMORY\n"),
   dump(0,maps:get(memory,element(3,Deploy))),
@@ -87,8 +95,10 @@ bal() ->
           Stor,
                  #{
                    gas=>20024,
-                   value=>0,
-                   caller=>16#c0de,
+                   data=>#{
+                           callvalue=>0,
+                           caller=>16#c0de
+                          },
                    trace=>whereis(eevm_tracer)}).
 
 tether() ->
@@ -106,8 +116,10 @@ tether() ->
                  #{},
                  #{
                    gas=>1000000,
-                   value=>0,
-                   caller=>16#c0de,
+                   data=>#{
+                           callvalue=>0,
+                           caller=>16#c0de
+                          },
                    trace=>Trace
                   }),
   %io:format("MEMORY\n"),
@@ -118,7 +130,7 @@ tether() ->
   GetBal=fun(S,Addr) ->
              {done, {return,<<Res:256/big>>}, _} = eevm:eval(Code2,
               S,
-              #{caller=>16#c0de,
+              #{data=>#{caller=>16#c0de},
                 gas=>100000},
               <<"balanceOf(address)">>,
               [Addr]),
@@ -138,7 +150,7 @@ tether() ->
                                      Code2,
                                      St,
                                      #{trace=>Trace,
-                                       caller=>From,
+                                       data=>#{caller=>From},
                                        gas=>100000},
                                      Func,Args),
         io:format("Res ~p~n",[R1]),
@@ -179,8 +191,10 @@ coin() ->
                  #{},
                  #{
                    gas=>100000,
-                   value=>0,
-                   caller=>16#c0de,
+                   data=>#{
+                           callvalue=>0,
+                           caller=>16#c0de
+                          },
                    trace=>Trace
                   }),
   %io:format("MEMORY\n"),
@@ -191,7 +205,7 @@ coin() ->
   {done,stop,#{storage:=St2}}=eevm:eval(Code2,
               Stor,
               #{trace=>Trace,
-                caller=>16#c0de,
+                data=>#{caller=>16#c0de},
                 gas=>100000},
               <<"mint(address,uint256)">>,
               [16#100,100]),
@@ -200,7 +214,7 @@ coin() ->
   {done,stop,#{storage:=St3}}=eevm:eval(Code2,
               St2,
               #{trace=>Trace,
-                caller=>16#c0de,
+                data=>#{caller=>16#c0de},
                 gas=>100000},
               <<"mint(address,uint256)">>,
               [16#200,200]),
@@ -209,7 +223,7 @@ coin() ->
   {done,stop,#{storage:=St4}}=eevm:eval(Code2,
               St3,
               #{trace=>Trace,
-                caller=>16#200,
+                data=>#{caller=>16#200},
                 gas=>100000},
               <<"send(address,uint256)">>,
               [16#100,200]),
@@ -231,8 +245,10 @@ erc20() ->
                  #{},
                  #{
                    gas=>100000,
-                   value=>10,
-                   caller=>16#c0de,
+                   data=>#{
+                           callvalue=>10,
+                           caller=>16#c0de
+                          },
                    trace=>whereis(eevm_tracer)}),
   io:format("MEMORY\n"),
   dump(0,maps:get(memory,element(3,Deploy))),
