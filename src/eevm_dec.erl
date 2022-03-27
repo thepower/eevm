@@ -1,5 +1,19 @@
 -module(eevm_dec).
--export([decode/1]).
+-export([decode/1,decode2list/1]).
+
+decode2list(<<>>) ->
+  [];
+
+decode2list(Bin) ->
+  case decode(Bin) of
+    {Opcode,Rest,_} ->
+      [Opcode|decode2list(Rest)];
+    {Opcode,Rest} ->
+      [Opcode|decode2list(Rest)];
+    _Any ->
+      []
+  end.
+    
 
 decode(<<16#00, Rest/binary>>) -> {stop,Rest};
 decode(<<16#01, Rest/binary>>) -> {add,Rest};
@@ -30,6 +44,9 @@ decode(<<16#1c, Rest/binary>>) -> {shr,Rest};
 decode(<<16#1d, Rest/binary>>) -> {sar,Rest};
 
 decode(<<16#20, Rest/binary>>) -> {sha3,Rest};
+
+decode(<<16#30, Rest/binary>>) -> {address,Rest};
+decode(<<16#31, Rest/binary>>) -> {balance,Rest};
 decode(<<16#32, Rest/binary>>) -> {origin,Rest};
 decode(<<16#33, Rest/binary>>) -> {caller,Rest};
 decode(<<16#34, Rest/binary>>) -> {callvalue,Rest};
@@ -38,6 +55,12 @@ decode(<<16#36, Rest/binary>>) -> {calldatasize,Rest};
 decode(<<16#37, Rest/binary>>) -> {calldatacopy,Rest};
 decode(<<16#38, Rest/binary>>) -> {codesize,Rest};
 decode(<<16#39, Rest/binary>>) -> {codecopy,Rest};
+decode(<<16#3a, Rest/binary>>) -> {gasprice,Rest};
+decode(<<16#3b, Rest/binary>>) -> {extcodesize,Rest};
+decode(<<16#3c, Rest/binary>>) -> {extcodecopy,Rest};
+decode(<<16#3d, Rest/binary>>) -> {returndatasize,Rest};
+decode(<<16#3e, Rest/binary>>) -> {returndatacopy,Rest};
+decode(<<16#3f, Rest/binary>>) -> {extcodehash,Rest};
 
 decode(<<16#40, Rest/binary>>) -> {blockhash,Rest};
 decode(<<16#41, Rest/binary>>) -> {coinbase,Rest};
@@ -83,11 +106,18 @@ decode(<<16#a2, Rest/binary>>) -> {{log,2},Rest};
 decode(<<16#a3, Rest/binary>>) -> {{log,3},Rest};
 decode(<<16#a4, Rest/binary>>) -> {{log,4},Rest};
 
-
+decode(<<16#f0, Rest/binary>>) -> {create,Rest};
+decode(<<16#f1, Rest/binary>>) -> {call,Rest};
+decode(<<16#f2, Rest/binary>>) -> {callcode,Rest};
 decode(<<16#f3, Rest/binary>>) -> {return,Rest};
+decode(<<16#f4, Rest/binary>>) -> {delegatecall,Rest};
+decode(<<16#f5, Rest/binary>>) -> {create2,Rest};
+
+decode(<<16#fa, Rest/binary>>) -> {staticcall,Rest};
+
 decode(<<16#fd, Rest/binary>>) -> {revert,Rest};
 decode(<<16#fe, Rest/binary>>) -> {invalid,Rest};
+decode(<<16#ff, Rest/binary>>) -> {selfdestruct,Rest};
 
 decode(<<Any:8/integer, Rest/binary>>) -> {Any,Rest}.
-
 

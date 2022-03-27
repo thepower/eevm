@@ -42,6 +42,8 @@ run(#{code:=Code}=State) ->
 run_next(PC, Code, #{gas:=Gas,stack:=Stack}=State) ->
   if(Gas<1) ->
       {error, nogas, State};
+    Code == <<>> ->
+      {done, eof, State};
     true ->
       ?TRACE({stack, Stack}),
       {Inst,Rest,NextPC}=case eevm_dec:decode(Code) of
@@ -217,7 +219,7 @@ interp(address, #{stack:=Stack, data:=#{address:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
 
 interp(balance, #{stack:=[Address|Stack], gas:=G, get:=#{balance:=GF}}=State) ->
-  A=GF(Address),
+  A=GF(Address, maps:get(extra,State,#{})),
   State#{stack=>[A|Stack], gas=>G-100};
 
 interp(origin, #{stack:=Stack, data:=#{origin:=A}, gas:=G}=State) ->
@@ -260,12 +262,12 @@ interp(gasprice, #{stack:=Stack, data:=#{gasprice:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
 
 interp(extcodesize, #{stack:=[Address|Stack], gas:=G, get:=#{code:=GF}}=State) ->
-  Code=GF(Address),
+  Code=GF(Address, maps:get(extra,State,#{})),
   State#{stack=>[size(Code)|Stack], gas=>G-2600};
 
 interp(extcodecopy, #{stack:=[Address,RAMOff,CodeOff,Len|Stack], gas:=G, 
                       memory:=RAM, get:=#{code:=GF}}=State) ->
-  Code=GF(Address),
+  Code=GF(Address, maps:get(extra,State,#{})),
   Value=eevm_ram:read(Code,CodeOff,Len),
   RAM1=eevm_ram:write(RAM,RAMOff,Value),
   ?TRACE({extcodecopy, {Len,CodeOff,RAMOff,Value}}),
@@ -284,7 +286,7 @@ interp(returndatacopy, #{stack:=[RAMOff,DataOff,Len|Stack],gas:=G,
   State#{stack=>Stack, gas=>G-Gas};
 
 interp(extcodehash, #{stack:=[Address|Stack], gas:=G, get:=#{code:=GF}}=State) ->
-  Code=GF(Address),
+  Code=GF(Address, maps:get(extra,State,#{})),
   Hash=crypto:hash(sha256,Code),
   State#{stack=>[Hash|Stack], gas=>G-2600};
 
@@ -460,12 +462,47 @@ interp({log,4},#{stack:=[Offset,Len,Topic0,Topic1, Topic2, Topic3|Stack],memory:
   Logger(BValue,[Topic0,Topic1,Topic2,Topic3]),
   State#{stack=>Stack,gas=>G-1875};
 
+interp(create, #{stack:=[Value,MemOff,Len|Stack], memory:=RAM, create:=CF, gas:=G}=State) ->
+  Code=eevm_ram:read(RAM,MemOff,Len),
+  {#{address:=Address},NewExtra}=CF(Value, Code, maps:get(extra,State,#{})),
+  Gas=3200,
+  State#{stack=>[Address|Stack], gas=>G-Gas, extra=>NewExtra};
+
 %-=[ 0xF0 ]=-
 
 interp(return,#{stack:=[Off,Len|Stack], memory:=RAM}=State) ->
   Value=eevm_ram:read(RAM,Off,Len),
   ?TRACE({return, Value}),
   {return,Value,State#{stack=>Stack}};
+
+interp(staticcall,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], 
+                    gas:=G, get:=#{code:=GF}=GET, sload:=SL, memory:=RAM}=State) ->
+  G1=(G-100),
+  KeepGas=G1 div 64,
+  Code=GF(Address, maps:get(extra,State,#{})),
+  {Return,GBurned}=
+  if Code==<<>> ->
+       {<<1:256/big>>,0};
+     true ->
+       CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
+       {done,{return,Bin},
+        #{gas:=GLeft}}=eevm:eval(Code,
+                                 #{},
+                                 #{gas=>G1-KeepGas,
+                                   trace=>whereis(eevm_tracer),
+                                   get=>GET,
+                                   sload=>SL,
+                                   cd=>CallData,
+                                   data=>#{
+                                           caller=>16#fff
+                                          }
+                                  }),
+       {Bin,(G1-KeepGas)-GLeft}
+  end,
+  RAM1=eevm_ram:write(RAM,RetOff,Return),
+
+  {return,Value,State#{stack=>Stack,gas=>G-}};
+
 
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
   Value=eevm_ram:read(RAM,MemOff,MemLen),

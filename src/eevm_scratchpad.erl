@@ -6,6 +6,89 @@ load(Filename) ->
   [ H | _ ] = binary:split(ERC20Hex, <<"\n">>),
   hex:decode(H).
 
+extcode() ->
+  Code=eevm:asm([
+                 {push,32,16#7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF},
+                 {push,1,0},
+                 mstore,
+                 {push,32,16#FF60005260206000F30000000000000000000000000000000000000000000000},
+                 {push,1,32},
+                 mstore,
+                 % Create the contract with the constructor code above
+                 {push,1,41},
+                 {push,1,0},
+                 {push,1,0},
+                 create, %Puts the new contract address on the stack
+                 {dup,1},
+                 % The address is on the stack, we can query the size
+                 extcodesize,
+                 {swap,1},
+
+                 {push,1, 0}, %clear memory
+                 {push,1, 0},
+                 mstore,
+                 {push,1, 0},
+                 {push,1, 32},
+                 mstore,
+
+                 {push,1, 32},
+                 {push,1, 0},
+                 {push,1, 0},
+                 {dup,4},
+                 extcodecopy,
+
+                 {push,1, 8},
+                 {push,1, 31},
+                 {push,1, 0},
+                 {dup,4},
+                 extcodecopy
+                ]),
+  {done,_,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+  Res=maps:with([extra,memory,stack,storage,gas], State),
+  #{stack:=[_,32]}=Res,
+  #{memory:= <<255,0,0,0,0,0,0,0,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,_/binary>>}=Res,
+  Res.
+
+returndata() ->
+  Code=eevm:asm(eevm:parse_asm( <<"
+PUSH32 0x7F7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+PUSH1 0
+MSTORE
+PUSH32 0xFF6000527FFF60005260206000F3000000000000000000000000000000000000
+PUSH1 32
+MSTORE
+PUSH32 0x000000000060205260296000F300000000000000000000000000000000000000
+PUSH1 64
+MSTORE
+
+// Create the contract with the constructor code above
+PUSH1 77
+PUSH1 0
+PUSH1 0
+CREATE // Puts the new contract address on the stack
+
+// Call the deployed contract
+PUSH1   0
+PUSH1 0
+PUSH1 0
+PUSH1 0
+DUP5
+PUSH4 0xFFFFFFFF
+STATICCALL
+
+// Now we should have our return data size of 32
+RETURNDATASIZE
+    ">>)),
+
+  {done,_,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+  Res=maps:with([extra,memory,stack,storage,gas], State),
+  #{stack:=[_,32]}=Res,
+  #{memory:= <<255,0,0,0,0,0,0,0,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,_/binary>>}=Res,
+  Res.
+
+
 erc() ->
   Code = load("testdata/erc.hex"),
   Code1= <<Code/binary,1024:256/big>>,
@@ -274,3 +357,26 @@ dump(Off,<<Bin/binary>>) ->
   io:format("~4.16B   ~s~n",[Off,hex:encode(Bin)]),
   ok.
 
+mkenc(N) ->
+  case eevm_dec:decode(<<N:8,0>>) of
+    {Atom,Bin} when is_atom(Atom),is_binary(Bin) ->
+      io_lib:format("encode('~s') -> <<16#~.16B:8/big>>;~n",[Atom,N]);
+    {{Atom,Len},Bin} when is_binary(Bin) ->
+      io_lib:format("encode({~s,~w}) -> <<16#~.16B:8/big>>;~n",[Atom,Len,N]);
+    {{Atom,Len,_Val},Bin,_} when is_binary(Bin) ->
+      io_lib:format("encode({~s,~w,Data}) -> <<16#~.16B:8/big,Data:~w/big>>;~n",
+                    [Atom,Len,N,Len*8]);
+    {Int,Bin} when is_integer(Int), is_binary(Bin) ->
+      []
+  end.
+
+cg() ->
+  file:write_file("opcodes",
+  list_to_binary(
+    [
+     "-module(eevm_enc).\n",
+     "-export([encode/1]).\n\n",
+    lists:map(fun mkenc/1, lists:seq(0,255)),
+    "encode(Instr) -> throw({unknown_instruction,Instr}).\n"
+    ]
+   )).
