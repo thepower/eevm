@@ -67,6 +67,7 @@ eval(Bytecode,Storage,State0) ->
                        storage=>Storage,
                        memory=><<>>,
                        code=>Bytecode,
+                       depth=>0,
                        logger=>Logger
                       },State0#{data=>Data}),
     eevm_interpret:run(State).
@@ -103,7 +104,7 @@ runtest(Code,MyAddr,Caller,CValue,_Extra) ->
   R=eevm:eval(
       Code,
       #{},
-      #{gas=>10000000,
+      #{gas=>100000000,
         extra=>Ex,
         get=>#{
                code => fun(Addr,Ex0) ->
@@ -112,12 +113,17 @@ runtest(Code,MyAddr,Caller,CValue,_Extra) ->
               },
         create=>fun(Value, Code1, Ex0) ->
                     Addr=1024+erlang:unique_integer([positive]),
-                    Deploy=eevm:eval(Code1,#{},#{gas=>1000, extra=>Ex0}),
-                    {done,{return,X},#{extra:=Ex1}}=Deploy,
+                    Deploy=eevm:eval(Code1,#{},#{gas=>100000, extra=>Ex0}),
+                    {done,{return,X},#{storage:=StRet,extra:=Ex1}}=Deploy,
 
-                    Ex2=maps:put({Addr,code},X,
-                                 maps:put({Addr,value},Value,Ex1)
-                            ),
+                    St2=maps:merge(
+                          maps:get({Addr,state},Ex0,#{}),
+                          StRet),
+                    Ex2=maps:put({Addr,state},St2,
+                                 maps:put({Addr,code},X,
+                                          maps:put({Addr,value},Value,Ex1)
+                                         )
+                                ),
                     {#{
                       address => Addr
                      },Ex2}
@@ -129,7 +135,8 @@ runtest(Code,MyAddr,Caller,CValue,_Extra) ->
                 gasprice=>10,
                 origin=>Caller
                },
-        trace=>whereis(eevm_tracer)}),
+        trace=>whereis(eevm_tracer)
+       }),
   R.
 
 asm(List) when is_list(List) ->
@@ -157,7 +164,7 @@ parse_line([Operator]) ->
 parse_asm(Code) when is_binary(Code) ->
   lists:filtermap(
     fun(Line) ->
-        L1=iolist_to_binary(re:replace(Line,"\/\/.+",<<>>)),
+        L1=iolist_to_binary(re:replace(Line,"\/\/.*",<<>>)),
         L2=iolist_to_binary(re:replace(L1,"(^\s+|\s+$)",<<>>)),
         L3=iolist_to_binary(re:replace(L2,"\s+",<<" ">>)),
         if(L3==<<>>) ->

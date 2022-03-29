@@ -1,4 +1,4 @@
--module(eevm_test).
+-module(eevm_opcodes).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -143,3 +143,5 @@ ops_test() ->
 
    ?assert(true)
   ].
+
+
