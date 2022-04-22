@@ -138,7 +138,8 @@ interp(exp,#{stack:=[A,B|Stack], gas:=G}=State) ->
 
 interp(signextend,#{stack:=[B,X|Stack], gas:=G}=State) ->
   BitLen=(B+1)*8,
-  <<_:(256-BitLen)/big,Val:BitLen/big-signed>> = <<X:256/big>>,
+  MBitLen=256-BitLen,
+  <<_:MBitLen/big,Val:BitLen/big-signed>> = <<X:256/big>>,
   <<Res:256/big>> = <<Val:256/big-signed>>,
   State#{stack=>[Res|Stack], gas=>G-10};
 
