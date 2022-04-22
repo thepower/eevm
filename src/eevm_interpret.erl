@@ -208,7 +208,8 @@ interp(sar,#{stack:=[Off,SA|Stack], gas:=G}=State) ->
 
 interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM, gas:=G}=State) ->
   RamData=eevm_ram:read(RAM,Off,Len),
-  Hash=crypto:hash(sha256,RamData),
+  %Hash=crypto:hash(sha256,RamData),
+  {ok,Hash}=ksha3:hash(256, RamData),
   Value = binary:decode_unsigned(Hash),
   ?TRACE({sha3, {Len,Off,RamData,Hash}}),
   Gas=30+(6*((Len+31) div 32)),
@@ -289,7 +290,8 @@ interp(returndatacopy, #{stack:=[RAMOff,DataOff,Len|Stack],gas:=G,
 
 interp(extcodehash, #{stack:=[Address|Stack], gas:=G, get:=#{code:=GF}}=State) ->
   Code=GF(Address, maps:get(extra,State,#{})),
-  Hash=crypto:hash(sha256,Code),
+  %Hash=crypto:hash(sha256,Code),
+  {ok,Hash}=ksha3:hash(256, Code),
   State#{stack=>[Hash|Stack], gas=>G-2600};
 
 %-=[ 0x40 ]=-
