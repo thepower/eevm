@@ -6,49 +6,7 @@ load(Filename) ->
   [ H | _ ] = binary:split(ERC20Hex, <<"\n">>),
   hex:decode(H).
 
-extcode() ->
-  Code=eevm:asm([
-                 {push,32,16#7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF},
-                 {push,1,0},
-                 mstore,
-                 {push,32,16#FF60005260206000F30000000000000000000000000000000000000000000000},
-                 {push,1,32},
-                 mstore,
-                 % Create the contract with the constructor code above
-                 {push,1,41},
-                 {push,1,0},
-                 {push,1,0},
-                 create, %Puts the new contract address on the stack
-                 {dup,1},
-                 % The address is on the stack, we can query the size
-                 extcodesize,
-                 {swap,1},
 
-                 {push,1, 0}, %clear memory
-                 {push,1, 0},
-                 mstore,
-                 {push,1, 0},
-                 {push,1, 32},
-                 mstore,
-
-                 {push,1, 32},
-                 {push,1, 0},
-                 {push,1, 0},
-                 {dup,4},
-                 extcodecopy,
-
-                 {push,1, 8},
-                 {push,1, 31},
-                 {push,1, 0},
-                 {dup,4},
-                 extcodecopy
-                ]),
-  {done,_,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
-  Res=maps:with([extra,memory,stack,storage,gas], State),
-  #{stack:=[_,32]}=Res,
-  #{memory:= <<255,0,0,0,0,0,0,0,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
-  255,255,255,255,255,255,255,255,255,255,_/binary>>}=Res,
-  Res.
 
 sload() ->
   Asm= <<"
@@ -105,38 +63,6 @@ code2mem(Code,Off) ->
                      [size(Code),hex:encode(Code),8*(32-size(Code)),Off])]
   end].
 
-call1() ->
-  Code=eevm:asm(eevm:parse_asm(<<"
-push16 38
-push32 0x63000f4240600055716000546001018060005560005260206000F360701B6000
-push1 0
-mstore
-push6 0x5260096000F3
-push1 208
-shl
-push1 32
-mstore
-
-dup1
-PUSH1 0
-PUSH1 0
-CREATE
-
-push1 0
-push1 0
-push1 0
-push1 0
-push1 0
-dup6
-push3 262144
-staticcall
-returndatasize ">>)),
-  {done,Ret,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
-  Res=maps:with([extra,memory,stack,storage,gas], State),
-  {Ret,Res}.
-
-
-
 call() ->
   Code=eevm:asm(eevm:parse_asm(<<"// Create a contract that creates an exception if first word of calldata is 0
 PUSH17 0x67600035600757FE5B60005260086018F3
@@ -172,44 +98,6 @@ CALL
   Res=maps:with([extra,memory,stack,storage,gas], State),
   Res.
 
-
-returndata() ->
-  Code=eevm:asm(eevm:parse_asm( <<"
-PUSH32 0x7F7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-PUSH1 0
-MSTORE
-PUSH32 0xFF6000527FFF60005260206000F3000000000000000000000000000000000000
-PUSH1 32
-MSTORE
-PUSH32 0x000000000060205260296000F300000000000000000000000000000000000000
-PUSH1 64
-MSTORE
-
-// Create the contract with the constructor code above
-PUSH1 77
-PUSH1 0
-PUSH1 0
-CREATE // Puts the new contract address on the stack
-
-// Call the deployed contract
-PUSH1   0
-PUSH1 0
-PUSH1 0
-PUSH1 0
-DUP5
-PUSH4 0xFFFFFFFF
-STATICCALL
-
-// Now we should have our return data size of 32
-RETURNDATASIZE
-    ">>)),
-
-  {done,_,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
-  Res=maps:with([extra,memory,stack,storage,gas], State),
-  #{stack:=[_,32]}=Res,
-  #{memory:= <<255,0,0,0,0,0,0,0,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
-  255,255,255,255,255,255,255,255,255,255,_/binary>>}=Res,
-  Res.
 
 
 erc() ->

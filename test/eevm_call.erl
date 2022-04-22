@@ -47,10 +47,47 @@ return
 
 ">>)),
   {done,Ret,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
-  %Res=maps:with([extra,memory,stack,storage,gas], State),
   [
    ?assertMatch({return,<<1002:256/big>>},Ret),
    ?assertMatch(#{extra:=#{}}, State),
    ?assert(true)
   ].
+
+returndatasize_test() ->
+  Code=eevm:asm(eevm:parse_asm( <<"
+PUSH32 0x7F7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+PUSH1 0
+MSTORE
+PUSH32 0xFF6000527FFF60005260206000F3000000000000000000000000000000000000
+PUSH1 32
+MSTORE
+PUSH32 0x000000000060205260296000F300000000000000000000000000000000000000
+PUSH1 64
+MSTORE
+
+// Create the contract with the constructor code above
+PUSH1 77
+PUSH1 0
+PUSH1 0
+CREATE // Puts the new contract address on the stack
+
+// Call the deployed contract
+PUSH1   0
+PUSH1 0
+PUSH1 0
+PUSH1 0
+DUP5
+PUSH4 0xFFFFFFFF
+STATICCALL
+
+// Now we should have our return data size of 32
+RETURNDATASIZE
+    ">>)),
+
+  {done,_,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+  [
+   ?assertMatch(#{stack:=[32,_]}, State),
+   ?assert(true)
+  ].
+
 
