@@ -221,8 +221,12 @@ interp(address, #{stack:=Stack, data:=#{address:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
 
 interp(balance, #{stack:=[Address|Stack], gas:=G, get:=#{balance:=GF}}=State) ->
-  A=GF(Address, maps:get(extra,State,#{})),
-  State#{stack=>[A|Stack], gas=>G-100};
+  case GF(Address, maps:get(extra,State,#{})) of
+    {ok, Value, NewXtra} ->
+      State#{stack=>[Value|Stack], gas=>G-100, extra=>NewXtra};
+    Value when is_integer(Value) ->
+      State#{stack=>[Value|Stack], gas=>G-100}
+  end;
 
 interp(origin, #{stack:=Stack, data:=#{origin:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
@@ -264,17 +268,29 @@ interp(gasprice, #{stack:=Stack, data:=#{gasprice:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
 
 interp(extcodesize, #{stack:=[Address|Stack], gas:=G, get:=#{code:=GF}}=State) ->
-  Code=GF(Address, maps:get(extra,State,#{})),
-  State#{stack=>[size(Code)|Stack], gas=>G-2600};
+  OldXtra=maps:get(extra,State,#{}),
+  {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra} ->
+                  {Value, NewXtra};
+                Value when is_binary(Value) ->
+                  {Value, OldXtra}
+              end,
+  State#{stack=>[size(Code)|Stack], gas=>G-2600, extra=>Xtra};
 
 interp(extcodecopy, #{stack:=[Address,RAMOff,CodeOff,Len|Stack], gas:=G, 
                       memory:=RAM, get:=#{code:=GF}}=State) ->
-  Code=GF(Address, maps:get(extra,State,#{})),
+  OldXtra=maps:get(extra,State,#{}),
+  {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Val, NewXtra} ->
+                  {Val, NewXtra};
+                Val when is_binary(Val) ->
+                  {Val, OldXtra}
+              end,
   Value=eevm_ram:read(Code,CodeOff,Len),
   RAM1=eevm_ram:write(RAM,RAMOff,Value),
   ?TRACE({extcodecopy, {Len,CodeOff,RAMOff,Value}}),
   Gas=2600+(3*(((Len+31) div 32))) + ?CMEM,
-  State#{stack=>Stack,memory=>RAM1, gas=>G-Gas};
+  State#{stack=>Stack,memory=>RAM1, gas=>G-Gas, extra=>Xtra};
 
 interp(returndatasize, #{stack:=Stack,gas:=G, return:=Data}=State) ->
   State#{stack=>[size(Data)|Stack], gas=>G-2};
@@ -289,10 +305,15 @@ interp(returndatacopy, #{stack:=[RAMOff,DataOff,Len|Stack],gas:=G,
   State#{stack=>Stack, gas=>G-Gas,memory=>RAM1};
 
 interp(extcodehash, #{stack:=[Address|Stack], gas:=G, get:=#{code:=GF}}=State) ->
-  Code=GF(Address, maps:get(extra,State,#{})),
-  %Hash=crypto:hash(sha256,Code),
+  OldXtra=maps:get(extra,State,#{}),
+  {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra} ->
+                  {Value, NewXtra};
+                Value when is_binary(Value) ->
+                  {Value, OldXtra}
+              end,
   {ok,Hash}=ksha3:hash(256, Code),
-  State#{stack=>[Hash|Stack], gas=>G-2600};
+  State#{stack=>[Hash|Stack], gas=>G-2600, extra=>Xtra};
 
 %-=[ 0x40 ]=-
 
@@ -321,7 +342,8 @@ interp(mstore8,#{stack:=[Offset,Val256|Stack],memory:=RAM, gas:=G}=State) ->
   State#{stack=>Stack,memory=>RAM1, gas=>G-Gas};
 
 %in case of sload function defined we can load data from external database
-interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G, sload:=LoadFun}=State) ->
+interp(sload,#{stack:=[Key|Stack],storage:=Storage, data:=#{address:=Addr},
+               gas:=G, sload:=LoadFun}=State) ->
   io:format("CAll sload ~p~n",[Key]),
   case maps:is_key(Key, Storage) of
     true ->
@@ -329,9 +351,15 @@ interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G, sload:=LoadFun}=Stat
       ?TRACE({sload, {Key,Value}}),
       State#{stack=>[Value|Stack],gas=>G-100};
     false ->
-      Value=LoadFun(Key),
-      ?TRACE({sload, {Key,Value}}),
-      State#{stack=>[Value|Stack],storage=>maps:put(Key,Value,Storage),gas=>G-2100}
+      Res=loadhelper(LoadFun, Addr, Key, maps:get(extra,State,#{})),
+      case Res of
+        {ok, Value, NewXtra} ->
+          ?TRACE({sload, {Key,Value}}),
+          State#{stack=>[Value|Stack],storage=>maps:put(Key,Value,Storage),gas=>G-2100,extra=>NewXtra};
+        Value when is_integer(Value) ->
+          ?TRACE({sload, {Key,Value}}),
+          State#{stack=>[Value|Stack],storage=>maps:put(Key,Value,Storage),gas=>G-2100}
+      end
   end;
 
 interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G}=State) ->
@@ -484,9 +512,15 @@ interp(return,#{stack:=[Off,Len|Stack], memory:=RAM}=State) ->
 
 interp(staticcall,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], 
                     gas:=G, get:=#{code:=GF}, memory:=RAM, depth:=D}=State) ->
+  OldXtra=maps:get(extra,State,#{}),
+  {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra} ->
+                  {Value, NewXtra};
+                Value when is_binary(Value) ->
+                  {Value, OldXtra}
+              end,
   G1=(G-100),
   KeepGas=G1 div 64,
-  Code=GF(Address, maps:get(extra,State,#{})),
   {Return,GBurned}=
   if Code==<<>> ->
        {<<1:256/big>>,0};
@@ -518,23 +552,28 @@ interp(staticcall,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack],
          true ->
            eevm_ram:write(RAM,RetOff,Return)
        end,
-  State#{stack=>Stack,gas=>G1-GBurned,return=>Return,memory=>RAM1};
+  State#{stack=>Stack,gas=>G1-GBurned,return=>Return,memory=>RAM1,extra=>Xtra};
 
 
 interp(call,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], 
                     gas:=G, get:=#{code:=GF}, depth:=D, memory:=RAM}=State) ->
+  OldXtra=maps:get(extra,State,#{}),
+  {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra1} ->
+                  {Value, NewXtra1};
+                Value when is_binary(Value) ->
+                  {Value, OldXtra}
+              end,
   G1=(G-100),
   KeepGas=G1 div 64,
-  Code=GF(Address, maps:get(extra,State,#{})),
   {Return,GBurned,NewXtra}=
   if Code==<<>> ->
        ?TRACE({call, D, Address, nocode}),
-       {<<1:256/big>>,0,maps:get(extra,State,#{})};
+       {<<1:256/big>>,0,Xtra};
      true ->
        CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
        ?TRACE({call, D, Address,CallData}),
        io:format("CAll~n"),
-       Xtra=maps:get(extra,State,#{}),
        {done,Res,
         #{gas:=GLeft,storage:=St1}}=eevm:eval(Code,
                                  maps:get({Address,state},Xtra, #{}),
@@ -580,3 +619,10 @@ interp(invalid,State) ->
 interp(Instr,State) ->
   {error,{bad_instruction,Instr},State}.
 
+loadhelper(LoadFun, Addr, Key, State) ->
+  case erlang:fun_info(LoadFun,arity) of
+    {arity, 1} ->
+      LoadFun(Key);
+    {arity, 3} ->
+      LoadFun(Addr, Key, State)
+  end.

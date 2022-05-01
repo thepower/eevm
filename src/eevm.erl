@@ -99,8 +99,8 @@ eval(Bytecode,Storage,State0,Function,Args) ->
                  end, << IFun:32/big>>, Args),
     eval(Bytecode,Storage,maps:merge(State0, #{ cd => CallData })).
 
-runtest(Code,MyAddr,Caller,CValue,_Extra) ->
-  Ex=maps:put({MyAddr,code},Code,#{}),
+runtest(Code,MyAddr,Caller,CValue,Extra) ->
+  Ex=maps:put({MyAddr,code},Code,Extra),
   R=eevm:eval(
       Code,
       #{},
