@@ -298,7 +298,7 @@ interp(returndatasize, #{stack:=Stack,gas:=G, return:=Data}=State) ->
 interp(returndatacopy, #{stack:=[RAMOff,DataOff,Len|Stack],gas:=G,
                          memory:=RAM, return:=Data}=State) ->
   Value=eevm_ram:read(Data,DataOff,Len),
-  io:format("Return ~w ~p~n",[DataOff,Value]),
+  %io:format("Return ~w ~p~n",[DataOff,Value]),
   RAM1=eevm_ram:write(RAM,RAMOff,Value),
   ?TRACE({returndatacopy, {Len,DataOff,RAMOff,Value}}),
   Gas=3+(3*(((Len+31) div 32))) + ?CMEM,
@@ -344,7 +344,7 @@ interp(mstore8,#{stack:=[Offset,Val256|Stack],memory:=RAM, gas:=G}=State) ->
 %in case of sload function defined we can load data from external database
 interp(sload,#{stack:=[Key|Stack],storage:=Storage, data:=#{address:=Addr},
                gas:=G, sload:=LoadFun}=State) ->
-  io:format("CAll sload ~p~n",[Key]),
+  %io:format("CAll sload ~p~n",[Key]),
   case maps:is_key(Key, Storage) of
     true ->
       Value=maps:get(Key,Storage,0),
@@ -364,7 +364,7 @@ interp(sload,#{stack:=[Key|Stack],storage:=Storage, data:=#{address:=Addr},
 
 interp(sload,#{stack:=[Key|Stack],storage:=Storage, gas:=G}=State) ->
   Value=maps:get(Key,Storage,0),
-  io:format("CAll sload ~p~n",[Key]),
+  %io:format("CAll sload ~p~n",[Key]),
   ?TRACE({sload, {Key,Value}}),
   State#{stack=>[Value|Stack],gas=>G-800};
 
@@ -381,7 +381,7 @@ interp(sstore,#{stack:=[Key,Value|Stack], storage:=Storage, gas:=G}=State) ->
          -15000
      end,
   ?TRACE({sstore, {Key,Value,Gas}}),
-  io:format("CAll sstore ~p~n",[{Key,Value,Gas}]),
+  %io:format("CAll sstore ~p~n",[{Key,Value,Gas}]),
   State#{stack=>Stack,storage=>St1,gas=>G-Gas};
 
 interp(jump,#{stack:=[Dst|Stack]}=State) ->
@@ -556,7 +556,7 @@ interp(staticcall,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack],
 
 
 interp(call,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], 
-                    gas:=G, get:=#{code:=GF}, depth:=D, memory:=RAM}=State) ->
+                    gas:=G, get:=#{code:=GF}, data:=Data, depth:=D, memory:=RAM}=State) ->
   OldXtra=maps:get(extra,State,#{}),
   {Code,Xtra}=case GF(Address, OldXtra) of
                 {ok, Value, NewXtra1} ->
@@ -573,28 +573,41 @@ interp(call,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack],
      true ->
        CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
        ?TRACE({call, D, Address,CallData}),
-       io:format("CAll~n"),
+       %io:format("CAll~n"),
+       Stor0=maps:get({Address,state},Xtra, #{}),
        {done,Res,
         #{gas:=GLeft,storage:=St1}}=eevm:eval(Code,
-                                 maps:get({Address,state},Xtra, #{}),
+                                              Stor0,
                                  maps:merge(
                                    #{gas=>min(G1-KeepGas,Gas),
                                      cd=>CallData,
                                      depth=>D+1,
                                      data=>#{
-                                             caller=>16#fff
+                                             address=>Address,
+                                             caller=>maps:get(address, Data),
+                                             callvalue=>0,
+                                             gasprice=>maps:get(gasprice,Data),
+                                             origin=>maps:get(origin,Data)
                                             }
                                     },
                                    maps:with([extra,sload,get,trace],State)
                                   )),
        ?TRACE({callret, D, Address,Res}),
-       io:format("CAll new st ~p~n",[St1]),
+       %io:format("CAll new st ~p~n",[St1]),
        Bin=case Res of
              {return, Bin1} -> Bin1;
              _ -> <<0>>
            end,
-
-       {Bin,(G1-KeepGas)-GLeft,maps:put({Address,state},St1,Xtra)}
+       if Stor0==St1 -> %state not changed
+            {Bin,(G1-KeepGas)-GLeft,Xtra};
+          true ->
+            Changes=[Address|maps:get(changed,Xtra)],
+            {Bin,(G1-KeepGas)-GLeft,
+             maps:put(changed, Changes,
+                      maps:put({Address,state},St1,Xtra)
+                     )
+            }
+       end
   end,
   RAM1=if(size(Return)>RetLen) ->
            <<Ret1:RetLen/binary,_/binary>> = Return,
