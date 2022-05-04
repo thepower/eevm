@@ -391,7 +391,7 @@ interp(jumpi,#{stack:=[Dst,0|Stack]}=State) ->
   ?TRACE({jumpi, {Dst,false}}),
   State#{stack=>Stack};
 
-interp(jumpi,#{stack:=[Dst,1|Stack]}=State) ->
+interp(jumpi,#{stack:=[Dst,N|Stack]}=State) when N>0 ->
   ?TRACE({jumpi, {Dst,true}}),
   {goto,Dst,State#{stack=>Stack}};
 
@@ -554,8 +554,63 @@ interp(staticcall,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack],
        end,
   State#{stack=>Stack,gas=>G1-GBurned,return=>Return,memory=>RAM1,extra=>Xtra};
 
+interp(callcode,#{stack:=[Gas,Address,CallValue,ArgOff,ArgLen,RetOff,RetLen|Stack],
+                    gas:=G, get:=#{code:=GF}, depth:=D, memory:=RAM, storage:=Stor0}=State) ->
+  OldXtra=maps:get(extra,State,#{}),
+  {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra1} ->
+                  {Value, NewXtra1};
+                Value when is_binary(Value) ->
+                  {Value, OldXtra}
+              end,
+  G1=(G-100),
+  KeepGas=G1 div 64,
+  {Return,GBurned,NewXtra,NewStor}=
+  if Code==<<>> ->
+       ?TRACE({call, D, Address, nocode}),
+       {<<1:256/big>>,0,Xtra,Stor0};
+     true ->
+       CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
+       ?TRACE({callcode, D, Address,CallData}),
+       {done,Res,
+        #{gas:=GLeft,
+          storage:=Stor1,
+          extra:=Xtra1}}=eevm:eval(Code,
+                                   Stor0,
+                                   maps:merge(
+                                     #{gas=>min(G1-KeepGas,Gas),
+                                       cd=>CallData,
+                                       depth=>D+1
+                                      },
+                                     maps:with([extra,sload,get,trace,data],State)
+                                    )),
+       Bin=case Res of
+             {return, Bin1} -> Bin1;
+             eof -> <<1>>;
+             stop -> <<1>>;
+             _ -> <<0>>
+           end,
+       ?TRACE({callret, D, Address,Res,Bin}),
+       io:format("Callcode ret {done,~p,...} - ~p~n",[Res, Bin]),
+       {Bin,(G1-KeepGas)-GLeft,Xtra1,Stor1}
+  end,
+  RAM1=if(size(Return)>RetLen) ->
+           <<Ret1:RetLen/binary,_/binary>> = Return,
+           eevm_ram:write(RAM,RetOff,Ret1);
+         true ->
+           eevm_ram:write(RAM,RetOff,Return)
+       end,
+  Success=if Return==<<0>> -> 0;
+             true -> 1
+          end,
 
-interp(call,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], 
+  State#{stack=>[Success|Stack],
+         gas=>G1-GBurned,
+         return=>Return,memory=>RAM1,
+         extra=>NewXtra,storage:=NewStor};
+
+
+interp(call,#{stack:=[Gas,Address,CallValue,ArgOff,ArgLen,RetOff,RetLen|Stack], 
                     gas:=G, get:=#{code:=GF}, data:=Data, depth:=D, memory:=RAM}=State) ->
   OldXtra=maps:get(extra,State,#{}),
   {Code,Xtra}=case GF(Address, OldXtra) of
@@ -592,12 +647,12 @@ interp(call,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack],
                                     },
                                    maps:with([extra,sload,get,trace],State)
                                   )),
-       ?TRACE({callret, D, Address,Res}),
        %io:format("CAll new st ~p~n",[St1]),
        Bin=case Res of
              {return, Bin1} -> Bin1;
              _ -> <<0>>
            end,
+       ?TRACE({callret, D, Address,Res,Bin}),
        if Stor0==St1 -> %state not changed
             {Bin,(G1-KeepGas)-GLeft,Xtra};
           true ->
@@ -615,8 +670,15 @@ interp(call,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack],
          true ->
            eevm_ram:write(RAM,RetOff,Return)
        end,
+  Success=if Return==<<0>> -> 0;
+             true -> 1
+          end,
 
-  State#{stack=>Stack,gas=>G1-GBurned,return=>Return,memory=>RAM1,extra=>NewXtra};
+  State#{stack=>[Success|Stack],
+         gas=>G1-GBurned,
+         return=>Return,
+         memory=>RAM1,
+         extra=>NewXtra};
 
 
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
