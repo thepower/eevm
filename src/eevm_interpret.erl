@@ -512,47 +512,68 @@ interp(return,#{stack:=[Off,Len|Stack], memory:=RAM}=State) ->
 
 interp(staticcall,#{stack:=[Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], 
                     gas:=G, get:=#{code:=GF}, memory:=RAM, depth:=D}=State) ->
-  OldXtra=maps:get(extra,State,#{}),
-  {Code,Xtra}=case GF(Address, OldXtra) of
-                {ok, Value, NewXtra} ->
-                  {Value, NewXtra};
-                Value when is_binary(Value) ->
-                  {Value, OldXtra}
-              end,
-  G1=(G-100),
-  KeepGas=G1 div 64,
-  {Return,GBurned}=
-  if Code==<<>> ->
-       {<<1:256/big>>,0};
-     true ->
-       CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
-       {done,Res,
-        #{gas:=GLeft}}=eevm:eval(Code,
-                                 #{},
-                                 maps:merge(
-                                   #{gas=>min(G1-KeepGas,Gas),
-                                     cd=>CallData,
-                                     depth=>D+1,
-                                     data=>#{
-                                             caller=>16#fff
-                                            }
-                                    },
-                                   maps:with([sload,get,trace],State)
-                                  )),
-       Bin=case Res of
-             {return, Bin1} -> Bin1;
-             _ -> <<0>>
-           end,
+  EmbeddedFun=maps:get(Address,maps:get(embedded_code,State,#{}),undefined),
+  if(is_function(EmbeddedFun)) ->
+      io:format("RAM read at ~p len ~p~n",[ArgOff,ArgLen]),
+      CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
+      {RetCode,ReturnBin}=EmbeddedFun(CallData),
+      G1=(G-100),
+      io:format("Call ~p~n",[CallData]),
+      io:format("Return ~p~n",[ReturnBin]),
 
-       {Bin,(G1-KeepGas)-GLeft}
-  end,
-  RAM1=if(size(Return)>RetLen) ->
-           <<Ret1:RetLen/binary,_/binary>> = Return,
-           eevm_ram:write(RAM,RetOff,Ret1);
+      RAM1=if(size(ReturnBin)>RetLen) ->
+               <<Ret1:RetLen/binary,_/binary>> = ReturnBin,
+               eevm_ram:write(RAM,RetOff,Ret1);
+             true ->
+               eevm_ram:write(RAM,RetOff,ReturnBin)
+           end,
+      State#{stack=>[RetCode|Stack],
+             gas=>G1,
+             return=>ReturnBin,
+             memory=>RAM1};
+    true ->
+      OldXtra=maps:get(extra,State,#{}),
+      {Code,Xtra}=case GF(Address, OldXtra) of
+                    {ok, Value, NewXtra} ->
+                      {Value, NewXtra};
+                    Value when is_binary(Value) ->
+                      {Value, OldXtra}
+                  end,
+      G1=(G-100),
+      KeepGas=G1 div 64,
+      {Return,GBurned}=
+      if Code==<<>> ->
+           {<<1:256/big>>,0};
          true ->
-           eevm_ram:write(RAM,RetOff,Return)
-       end,
-  State#{stack=>Stack,gas=>G1-GBurned,return=>Return,memory=>RAM1,extra=>Xtra};
+           CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
+           {done,Res,
+            #{gas:=GLeft}}=eevm:eval(Code,
+                                     #{},
+                                     maps:merge(
+                                       #{gas=>min(G1-KeepGas,Gas),
+                                         cd=>CallData,
+                                         depth=>D+1,
+                                         data=>#{
+                                                 caller=>16#fff
+                                                }
+                                        },
+                                       maps:with([sload,get,trace],State)
+                                      )),
+           Bin=case Res of
+                 {return, Bin1} -> Bin1;
+                 _ -> <<0>>
+               end,
+
+           {Bin,(G1-KeepGas)-GLeft}
+      end,
+      RAM1=if(size(Return)>RetLen) ->
+               <<Ret1:RetLen/binary,_/binary>> = Return,
+               eevm_ram:write(RAM,RetOff,Ret1);
+             true ->
+               eevm_ram:write(RAM,RetOff,Return)
+           end,
+      State#{stack=>[1|Stack],gas=>G1-GBurned,return=>Return,memory=>RAM1,extra=>Xtra}
+  end;
 
 interp(callcode,#{stack:=[Gas,Address,CallValue,ArgOff,ArgLen,RetOff,RetLen|Stack],
                     gas:=G, get:=#{code:=GF}, depth:=D, memory:=RAM, storage:=Stor0}=State) ->
@@ -656,7 +677,7 @@ interp(call,#{stack:=[Gas,Address,CallValue,ArgOff,ArgLen,RetOff,RetLen|Stack],
        if Stor0==St1 -> %state not changed
             {Bin,(G1-KeepGas)-GLeft,Xtra};
           true ->
-            Changes=[Address|maps:get(changed,Xtra)],
+            Changes=[Address|maps:get(changed,Xtra,[])],
             {Bin,(G1-KeepGas)-GLeft,
              maps:put(changed, Changes,
                       maps:put({Address,state},St1,Xtra)

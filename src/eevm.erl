@@ -30,6 +30,7 @@ stop(_State) ->
                       },
              'cd'=>binary(),
              'sload'=>function(),
+             'embedded_code'=>map(),
              'get'=>#{
                       'balance'=>function(),
                       'code'=>function()

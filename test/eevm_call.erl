@@ -37,6 +37,7 @@ dup7
 push3 262144
 call
 
+pop
 returndatasize
 dup1
 push1 0
@@ -80,6 +81,7 @@ DUP5
 PUSH4 0xFFFFFFFF
 STATICCALL
 
+pop
 // Now we should have our return data size of 32
 RETURNDATASIZE
     ">>)),
@@ -90,4 +92,47 @@ RETURNDATASIZE
    ?assert(true)
   ].
 
+
+embedded_call_test() ->
+  Code=eevm:asm(eevm:parse_asm( <<"
+// First place the parameters in memory
+PUSH5 0x68656C6C6F // data
+PUSH1 0
+MSTORE
+
+// Do the call
+PUSH1 0x20 // retSize
+PUSH1 0x20 // retOffset
+PUSH1 5 // argsSize
+PUSH1 27 // argsOffset
+PUSH1 2 // address
+PUSH4 0xFFFFFFFF // gas
+STATICCALL
+
+// Put the result alone on the stack
+PUSH1 0x20
+MLOAD
+    ">>)),
+
+  Sha2 = fun(Data) ->
+             Hash=crypto:hash(sha256,Data),
+             {1,Hash}
+         end,
+  {done,_,State}=eevm:eval(Code,
+                           #{},
+                           #{
+                             gas=>1000,
+                             get=>#{
+                                    code=>fun()->throw(error) end
+                                   },
+                             embedded_code => #{
+                                                2=> Sha2
+                                               }
+                            }),
+  Hash=binary:decode_unsigned(crypto:hash(sha256,<<"hello">>)),
+  [
+   ?assertMatch(#{stack:=[Hash,_]}, State),
+   ?assertMatch(#{stack:=[_,1]}, State),
+   ?assert(true)
+  ].
 
