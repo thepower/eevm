@@ -93,7 +93,7 @@ RETURNDATASIZE
   ].
 
 
-embedded_call_test() ->
+embedded_call2_test() ->
   Code=eevm:asm(eevm:parse_asm( <<"
 // First place the parameters in memory
 PUSH5 0x68656C6C6F // data
@@ -130,6 +130,49 @@ MLOAD
                                                }
                             }),
   Hash=binary:decode_unsigned(crypto:hash(sha256,<<"hello">>)),
+  [
+   ?assertMatch(#{stack:=[Hash,_]}, State),
+   ?assertMatch(#{stack:=[_,1]}, State),
+   ?assert(true)
+  ].
+
+embedded_call3_test() ->
+  Code=eevm:asm(eevm:parse_asm( <<"
+// First place the parameters in memory
+PUSH1 0xff // data
+PUSH1 0
+MSTORE
+
+// Do the call
+PUSH1 0x20 // retSize
+PUSH1 0x20 // retOffset
+PUSH1 1 // argsSize
+PUSH1 31 // argsOffset
+PUSH1 3 // address
+PUSH4 0xFFFFFFFF // gas
+STATICCALL
+
+// Put the result alone on the stack
+PUSH1 0x20
+MLOAD
+    ">>)),
+
+  Ripemd = fun(Data) ->
+             <<Hash:20/binary,_/binary>> = crypto:hash(ripemd160,Data),
+             {1,<<0:96/big,Hash/binary>>}
+         end,
+  {done,_,State}=eevm:eval(Code,
+                           #{},
+                           #{
+                             gas=>1000,
+                             get=>#{
+                                    code=>fun()->throw(error) end
+                                   },
+                             embedded_code => #{
+                                                3=> Ripemd
+                                               }
+                            }),
+  Hash=16#2c0c45d3ecab80fe060e5f1d7057cd2f8de5e557,
   [
    ?assertMatch(#{stack:=[Hash,_]}, State),
    ?assertMatch(#{stack:=[_,1]}, State),
