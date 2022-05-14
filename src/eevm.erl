@@ -114,7 +114,11 @@ runtest(Code,MyAddr,Caller,CValue,Extra) ->
               },
         create=>fun(Value, Code1, Ex0) ->
                     Addr=1024+erlang:unique_integer([positive]),
-                    Deploy=eevm:eval(Code1,#{},#{gas=>100000, extra=>Ex0}),
+                    Deploy=eevm:eval(Code1,#{},#{gas=>100000,
+                                                 extra=>Ex0,
+                                                 trace=>whereis(eevm_tracer),
+                                                 depth=>100
+                                                }),
                     {done,{return,X},#{storage:=StRet,extra:=Ex1}}=Deploy,
 
                     St2=maps:merge(
@@ -129,6 +133,11 @@ runtest(Code,MyAddr,Caller,CValue,Extra) ->
                       address => Addr
                      },Ex2}
                 end,
+        sload=>fun(Addr, Key, State) ->
+                   AddrSt=maps:get({Addr,state},State,#{}),
+                   Res=maps:get(Key,AddrSt,0),
+                   Res
+               end,
         data=>#{
                 address=>MyAddr,
                 callvalue=>CValue,
@@ -143,6 +152,18 @@ runtest(Code,MyAddr,Caller,CValue,Extra) ->
 asm(List) when is_list(List) ->
   list_to_binary([eevm_enc:encode(X) || X<-List ]).
 
+parse_line(["push",Value]) ->
+  Val=case Value of
+        "0x"++V1 ->
+          %binary:decode_unsigned(hex:decode(V1));
+          list_to_integer(V1,16);
+        _ ->
+          list_to_integer(Value)
+      end,
+  Size=max(1,ceil(ceil(math:log(max(Val,2))/math:log(2)) / 8)),
+  {push,Size,Val};
+
+
 parse_line(["push"++Len,Value]) ->
   Val=case Value of
         "0x"++V1 ->
@@ -152,6 +173,9 @@ parse_line(["push"++Len,Value]) ->
           list_to_integer(Value)
       end,
   {push,list_to_integer(Len),Val};
+
+parse_line(["log"++N]) ->
+  {log,list_to_integer(N)};
 
 parse_line(["dup"++N]) ->
   {dup,list_to_integer(N)};
@@ -171,6 +195,7 @@ parse_asm(Code) when is_binary(Code) ->
         if(L3==<<>>) ->
             false;
           true ->
+            io:format("~s~n",[L3]),
             List = string:split(
                      string:lowercase(
                        binary_to_list(L3)
@@ -178,5 +203,5 @@ parse_asm(Code) when is_binary(Code) ->
             {true,parse_line(List)}
         end
     end,
-    binary:split(Code,<<"\n">>,[global])
+    binary:split(Code,[<<"\n">>,<<";">>],[global])
    ).

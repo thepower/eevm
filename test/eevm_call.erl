@@ -28,6 +28,8 @@ push1 0
 dup6
 push3 262144
 call
+
+
 push1 0
 push1 0
 push1 0
@@ -36,6 +38,11 @@ push1 0
 dup7
 push3 262144
 call
+
+//dup1
+//push 0
+//push 0
+//log1
 
 pop
 returndatasize
