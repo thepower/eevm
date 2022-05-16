@@ -1,6 +1,131 @@
 -module(eevm_call).
+-export([calltestinfo/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+
+
+calltestinfo() ->
+  Code=eevm:asm(eevm:parse_asm(
+<<"
+address
+push1 0
+mstore
+
+origin
+push1 32
+mstore
+
+caller
+push1 64
+mstore
+
+callvalue
+push1 96
+mstore
+
+push1 128
+push1 0
+return
+  ">>)),
+  Code2Mem=eevm_scratchpad:code2mem(Code,0),
+
+  DeployCode=list_to_binary([
+                             Code2Mem,
+                             <<"push1 0
+                             return">>
+                            ]),
+  list_to_binary(
+    eevm_scratchpad:code2mem(eevm:asm(eevm:parse_asm(DeployCode)),0)
+   ).
+
+callcode(Call) ->
+  C=list_to_binary(
+      [
+       eevm_call:calltestinfo(),
+       <<"
+PUSH1 0
+PUSH1 0
+CREATE
+
+push1 0
+push1 0
+push1 0
+push1 0
+push1 0
+dup6
+push3 262144
+">>,
+       Call,
+       <<"
+pop
+returndatasize
+dup1
+push1 0
+push1 0
+returndatacopy
+push1 0
+return
+">>]),
+  %io:format("----~n~s~n~n",[C]),
+  eevm:asm(eevm:parse_asm(C)).
+
+call2_orig_test() ->
+  [
+   {parent,
+    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %origin
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %caller
+    0
+   },
+   {call,
+    16#230fc3fe9249c6f698bfefea56debde9e1de2934, %child
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+    16#0
+   },
+   {staticcall,
+    16#230fc3fe9249c6f698bfefea56debde9e1de2934, %child
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+    16#0
+   },
+   {callcode,
+    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+    16#0
+   },
+   {delegatecall,
+    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_caller
+    16#0
+   }
+  ].
+
+
+
+call2_test() ->
+  io:format("Call ~10s ~10s ~10s ~10s ~10s~n", ["","addr","orig","caller","val"]),
+  Res=lists:map(
+  fun(N)->
+      Code=callcode(N),
+      {done,
+       {return,
+        <<A1:256/big,A2:256/big,A3:256/big,A4:256/big>>
+       },_State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+      io:format("Call ~10s ~10B ~10B ~10B ~10B~n", [N,A1,A2,A3,A4]),
+      {N,A1,A2,A3,A4}
+  end, [<<"call">>,<<"staticcall">>,<<"callcode">>,<<"delegatecall">>]),
+  [
+   ?assertMatch({<<"call">>,_,             16#101,16#100,0},lists:keyfind(<<"call">>,1,Res)),
+   ?assertMatch({<<"staticcall">>,_,       16#101,16#100,0},lists:keyfind(<<"staticcall">>,1,Res)),
+   ?assertMatch({<<"callcode">>,    16#100,16#101,16#100,0},lists:keyfind(<<"callcode">>,1,Res)),
+   ?assertMatch({<<"delegatecall">>,16#100,16#101,16#101,0},lists:keyfind(<<"delegatecall">>,1,Res)),
+   ?assert(true)
+  ].
+
+
 
 call1_test() ->
   Code=eevm:asm(eevm:parse_asm(

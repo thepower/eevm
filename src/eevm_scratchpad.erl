@@ -49,8 +49,10 @@ return
 
 code2mem(Code,Off) ->
   [if(Off==0) ->
-      io_lib:format("push16 ~w~n",[size(Code)]);
-    true ->
+       CodeS=size(Code),
+       Size=max(1,ceil(ceil(math:log(max(CodeS,2))/math:log(2)) / 8)),
+       io_lib:format("push~w ~w~n",[Size,CodeS]);
+     true ->
       []
   end,
   if(size(Code)>32) ->

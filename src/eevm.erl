@@ -195,7 +195,6 @@ parse_asm(Code) when is_binary(Code) ->
         if(L3==<<>>) ->
             false;
           true ->
-            io:format("~s~n",[L3]),
             List = string:split(
                      string:lowercase(
                        binary_to_list(L3)

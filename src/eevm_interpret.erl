@@ -754,6 +754,7 @@ call_args(delegatecall, [Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], RAM) ->
     gas => Gas,
     address => Address,
     calldata => CallData,
+    value => 0,
     return_off => RetOff,
     return_len => RetLen,
     stack => Stack
@@ -776,29 +777,31 @@ call_embedded(_Method, Gas, #{calldata:=CallData}, EmbeddedFun, State) ->
   {Gas-100, RetCode, ReturnBin, State}.
 
 
-calldata(staticcall, _CallArgs, Data) ->
+
+calldata(staticcall, #{address:=Address}=_CallArgs, Data) ->
   Data#{
+    address=>Address,
+    caller=>maps:get(address, Data),
     value=>0
    };
 
 calldata(callcode, _CallArgs, Data) ->
   Data#{
-    callvalue => 0
+    callvalue => 0,
+    caller => maps:get(address, Data)
    };
 
-calldata(delegatecall, #{value:=Value}, Data) ->
+calldata(delegatecall, #{}, Data) ->
   Data#{
-    value=>Value
    };
 
 calldata(call, #{address:=Address, value:=Value}, Data) ->
-  #{
+  Data#{
     address=>Address,
     caller=>maps:get(address, Data),
-    callvalue=>Value,
-    gasprice=>maps:get(gasprice,Data),
-    origin=>maps:get(origin,Data)
+    callvalue=>Value
    }.
+
 
 call_ext(Method=staticcall,
          Code,
