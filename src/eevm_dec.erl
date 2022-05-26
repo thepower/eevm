@@ -75,6 +75,7 @@ decode(<<16#48, Rest/binary>>) -> {basefee,Rest};
 decode(<<16#50, Rest/binary>>) -> {pop,Rest};
 decode(<<16#51, Rest/binary>>) -> {mload,Rest};
 decode(<<16#52, Rest/binary>>) -> {mstore,Rest};
+decode(<<16#53, Rest/binary>>) -> {mstore8,Rest};
 decode(<<16#54, Rest/binary>>) -> {sload,Rest};
 decode(<<16#55, Rest/binary>>) -> {sstore,Rest};
 decode(<<16#56, Rest/binary>>) -> {jump,Rest};

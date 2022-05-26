@@ -1,7 +1,89 @@
 -module(eevm_call).
--export([calltestinfo/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+
+sstore_scode() ->
+  Code=eevm:asm(eevm:parse_asm(
+<<"
+push1 0
+sload
+push1 1
+add
+dup1
+push1 0
+mstore
+push1 0
+sstore
+
+push1 32
+push1 0
+return
+  ">>)),
+  Code2Mem=eevm_scratchpad:code2mem(Code,0),
+
+  DeployCode=list_to_binary([
+                             Code2Mem,
+                             <<"push1 0
+                             return">>
+                            ]),
+  list_to_binary(
+    eevm_scratchpad:code2mem(eevm:asm(eevm:parse_asm(DeployCode)),0)
+   ).
+
+sstore_code(Call) ->
+  C=list_to_binary(
+      [
+       sstore_scode(),
+       <<"
+PUSH1 0
+PUSH1 0
+CREATE
+
+push1 0
+push1 0
+push1 0
+push1 0
+push1 0
+dup6
+push3 262144
+">>,
+       Call,
+       <<"
+push1 0
+mstore8
+returndatasize
+dup1
+push1 0
+push1 1
+returndatacopy
+push1 1
+add
+push1 0
+return
+">>]),
+  %io:format("----~n~s~n~n",[C]),
+  eevm:asm(eevm:parse_asm(C)).
+
+sstore_static_test() -> %check crash on call sstore inside static call
+  Res=lists:map(
+  fun(N)->
+      Code=sstore_code(N),
+      {done,
+       {return,Ret},
+       #{extra:=X,storage:=St}=_State}=eevm:runtest(Code,16#100,16#101,0,
+                                                    #{{16#100,state}=>#{0=>4}}),
+      io:format("Call ~10s ~p~n", [N,Ret]),
+      io:format("~p~n",[{X,St}]),
+      {N,Ret}
+  end, [<<"call">>,<<"staticcall">>,<<"callcode">>,<<"delegatecall">>]),
+  [
+   ?assertMatch({<<"call">>,<<1,1:256/big>>},lists:keyfind(<<"call">>,1,Res)),
+   ?assertMatch({<<"staticcall">>,<<0>>},lists:keyfind(<<"staticcall">>,1,Res)),
+   ?assertMatch({<<"callcode">>,<<1,5:256/big>>},lists:keyfind(<<"callcode">>,1,Res)),
+   ?assertMatch({<<"delegatecall">>,<<1,5:256/big>>},lists:keyfind(<<"delegatecall">>,1,Res)),
+   ?assert(true)
+  ].
+
 
 
 calltestinfo() ->
@@ -41,7 +123,7 @@ return
 callcode(Call) ->
   C=list_to_binary(
       [
-       eevm_call:calltestinfo(),
+       calltestinfo(),
        <<"
 PUSH1 0
 PUSH1 0
@@ -69,41 +151,38 @@ return
   %io:format("----~n~s~n~n",[C]),
   eevm:asm(eevm:parse_asm(C)).
 
-call2_orig_test() ->
-  [
-   {parent,
-    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %origin
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %caller
-    0
-   },
-   {call,
-    16#230fc3fe9249c6f698bfefea56debde9e1de2934, %child
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
-    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
-    16#0
-   },
-   {staticcall,
-    16#230fc3fe9249c6f698bfefea56debde9e1de2934, %child
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
-    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
-    16#0
-   },
-   {callcode,
-    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
-    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
-    16#0
-   },
-   {delegatecall,
-    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
-    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_caller
-    16#0
-   }
-  ].
-
-
+%  [
+%   {parent,
+%    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %origin
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %caller
+%    0
+%   },
+%   {call,
+%    16#230fc3fe9249c6f698bfefea56debde9e1de2934, %child
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+%    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+%    16#0
+%   },
+%   {staticcall,
+%    16#230fc3fe9249c6f698bfefea56debde9e1de2934, %child
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+%    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+%    16#0
+%   },
+%   {callcode,
+%    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+%    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+%    16#0
+%   },
+%   {delegatecall,
+%    16#9bbfed6889322e016e0a02ee459d306fc19545d8, %parent_addr
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_origin
+%    16#be862ad9abfe6f22bcb087716c7d89a26051f74c, %orig_caller
+%    16#0
+%   }
+%  ].
 
 call2_test() ->
   io:format("Call ~10s ~10s ~10s ~10s ~10s~n", ["","addr","orig","caller","val"]),

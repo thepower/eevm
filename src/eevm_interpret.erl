@@ -39,6 +39,14 @@
 run(#{code:=Code}=State) ->
   run_next(0,Code,State).
 
+allow_opcode(_, selfdestruct) -> false; %does not dupported
+allow_opcode(false, _) -> true;
+allow_opcode(true, create) -> false;
+allow_opcode(true, create2) -> false;
+allow_opcode(true, {log,_}) -> false;
+allow_opcode(true, sstore) -> false;
+allow_opcode(true, _) -> true.
+
 run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
   if(Gas<1) ->
       {error, nogas, State};
@@ -53,25 +61,30 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
                              {I, RestCode, PC+Offset}
                          end,
       ?TRACE({opcode, D, {PC, Inst}}),
-      case interp(Inst,State#{pc=>PC}) of
-        {fin, Reason, S2} ->
-          {done,Reason,S2};
-        {goto,Dst,S2} ->
-          <<_:Dst/binary,JmpOpcode:8/integer,NewCode/binary>> =maps:get(code,State),
-          case JmpOpcode of
-            16#5b -> %jumpdest
-              ?TRACE({jump_ok, D, Dst}),
-              run_next(Dst+1,NewCode,S2);
-            Other ->
-              ?TRACE({jump_error, D, Other}),
-              {error, {jump_to, Other}, State}
-          end;
-        {return, Data, S2} ->
-          {done,{return,Data},S2};
-        {error,{bad_instruction,_}=Reason,State} ->
-          {error,Reason,State};
-        S2 when is_map(S2) ->
-          run_next(NextPC,Rest,S2)
+      case allow_opcode(maps:is_key(static,State), Inst) of
+        false ->
+          {fin, invalid, State#{pc=>PC}};
+        true ->
+          case interp(Inst,State#{pc=>PC}) of
+            {fin, Reason, S2} ->
+              {done,Reason,S2};
+            {goto,Dst,S2} ->
+              <<_:Dst/binary,JmpOpcode:8/integer,NewCode/binary>> =maps:get(code,State),
+              case JmpOpcode of
+                16#5b -> %jumpdest
+                  ?TRACE({jump_ok, D, Dst}),
+                  run_next(Dst+1,NewCode,S2);
+                Other ->
+                  ?TRACE({jump_error, D, Other}),
+                  {error, {jump_to, Other}, State}
+              end;
+            {return, Data, S2} ->
+              {done,{return,Data},S2};
+            {error,{bad_instruction,_}=Reason,State} ->
+              {error,Reason,State};
+            S2 when is_map(S2) ->
+              run_next(NextPC,Rest,S2)
+          end
       end
   end.
 
@@ -698,31 +711,36 @@ call_ext(Method=staticcall,
          #{depth:=D,data:=Data}=State) ->
 
   ?TRACE({Method, D, Address,CallArgs}),
-  {done,Res,
-   #{gas:=GasLeft,
-     storage:=Stor1,
-     extra:=Xtra1}}=eevm:eval(Code,
-                              Stor0,
-                              maps:merge(
-                                #{gas=>Gas,
-                                  cd=>CD,
-                                  depth=>D+1,
-                                  data=>calldata(Method,CallArgs,Data),
-                                  extra=>Xtra,
-                                  static=>true
-                                 },
-                                maps:with([sload,get,trace,static],State)
-                               )),
-  {Bin,RetVal}=case Res of
-        {return, Bin1} -> {Bin1,1};
-        eof -> {<<1>>,1};
-        stop -> {<<1>>,1};
-        _ -> {<<0>>,0}
-      end,
-  ?TRACE({callret, D, Address,Res,Bin}),
-  %io:format("Callcode ret {done,~p,...} -> ~p~n",[Res, RetVal]),
+  
+  case eevm:eval(Code,
+                 Stor0,
+                 maps:merge(
+                   #{gas=>Gas,
+                     cd=>CD,
+                     depth=>D+1,
+                     data=>calldata(Method,CallArgs,Data),
+                     extra=>Xtra,
+                     static=>true
+                    },
+                   maps:with([sload,get,trace,static],State)
+                  )) of
+    {done,Res,
+     #{gas:=GasLeft,
+       storage:=Stor1,
+       extra:=Xtra1}} ->
+      {Bin,RetVal}=case Res of
+                     {return, Bin1} -> {Bin1,1};
+                     eof -> {<<1>>,1};
+                     stop -> {<<1>>,1};
+                     _ -> {<<0>>,0}
+                   end,
+      ?TRACE({callret, D, Address,Res,Bin}),
+      %io:format("Callcode ret {done,~p,...} -> ~p~n",[Res, RetVal]),
 
-  {GasLeft, RetVal, Bin, Xtra1, Stor1};
+      {GasLeft, RetVal, Bin, Xtra1, Stor1};
+    {fin, invalid, _} ->
+      {0, 0, <<>>, Xtra, Stor0}
+  end;
 
 call_ext(Method,
          Code,

@@ -57,6 +57,7 @@ encode('basefee') -> <<16#48:8/big>>;
 encode('pop') -> <<16#50:8/big>>;
 encode('mload') -> <<16#51:8/big>>;
 encode('mstore') -> <<16#52:8/big>>;
+encode('mstore8') -> <<16#53:8/big>>;
 encode('sload') -> <<16#54:8/big>>;
 encode('sstore') -> <<16#55:8/big>>;
 encode('jump') -> <<16#56:8/big>>;
