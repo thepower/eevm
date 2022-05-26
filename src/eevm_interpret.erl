@@ -516,6 +516,12 @@ interp(create, #{stack:=[Value,MemOff,Len|Stack], memory:=RAM, create:=CF, gas:=
   Gas=3200,
   State#{stack=>[Address|Stack], gas=>G-Gas, extra=>NewExtra};
 
+interp(create2, #{stack:=[Value,MemOff,Len,_Salt|Stack], memory:=RAM, create:=CF, gas:=G}=State) ->
+  Code=eevm_ram:read(RAM,MemOff,Len),
+  {#{address:=Address},NewExtra}=CF(Value, Code, maps:get(extra,State,#{})),
+  Gas=3200,
+  State#{stack=>[Address|Stack], gas=>G-Gas, extra=>NewExtra};
+
 %-=[ 0xF0 ]=-
 
 interp(return,#{stack:=[Off,Len|Stack], memory:=RAM}=State) ->
