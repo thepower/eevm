@@ -551,10 +551,10 @@ interp(CALL, #{data:=#{address:=Self},
       if Code==<<>> ->
            State#{stack=>[1|Stack],gas=>G1,return=><<2:256/big>>,extra=>Xtra};
          true ->
-           Stor0=if Address==Self ->
-                      Storage0;
+           {Stor0,RS}=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
+                           {Storage0,true};
                     true ->
-                      #{}
+                           {#{},false}
                  end,
            {GasLeft,RetCode,ReturnBin,NewXtra,Stor1}=call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra, State),
            Burned=GPassed-GasLeft,
@@ -566,140 +566,26 @@ interp(CALL, #{data:=#{address:=Self},
                eevm_ram:write(RAM,RetOff,ReturnBin)
            end,
 
-           State#{stack=>[RetCode|Stack],
-                  gas=>G1-Burned,
-                  storage:=Stor1,
-                  return=>ReturnBin,
-                  memory=>RAM1,
-                  extra=>NewXtra}
+           case RS of
+             false ->
+               SaveStore=maps:merge(
+                           maps:get({Address,state},NewXtra,#{}),
+                           Stor1),
+               State#{stack=>[RetCode|Stack],
+                      gas=>G1-Burned,
+                      return=>ReturnBin,
+                      memory=>RAM1,
+                      extra=>NewXtra#{{Address,state} => SaveStore}};
+             true ->
+               State#{stack=>[RetCode|Stack],
+                      gas=>G1-Burned,
+                      storage:=Stor1,
+                      return=>ReturnBin,
+                      memory=>RAM1,
+                      extra=>NewXtra}
+           end
       end
   end;
-
-interp(callcode,#{stack:=[Gas,Address,_CallValue,ArgOff,ArgLen,RetOff,RetLen|Stack],
-                    gas:=G, get:=#{code:=GF}, depth:=D, memory:=RAM, storage:=Stor0}=State) ->
-  OldXtra=maps:get(extra,State,#{}),
-  {Code,Xtra}=case GF(Address, OldXtra) of
-                {ok, Value, NewXtra1} ->
-                  {Value, NewXtra1};
-                Value when is_binary(Value) ->
-                  {Value, OldXtra}
-              end,
-  G1=(G-100),
-  KeepGas=G1 div 64,
-  {Return,GBurned,NewXtra,NewStor}=
-  if Code==<<>> ->
-       ?TRACE({call, D, Address, nocode}),
-       {<<1:256/big>>,0,Xtra,Stor0};
-     true ->
-       CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
-       ?TRACE({callcode, D, Address,CallData}),
-       {done,Res,
-        #{gas:=GLeft,
-          storage:=Stor1,
-          extra:=Xtra1}}=eevm:eval(Code,
-                                   Stor0,
-                                   maps:merge(
-                                     #{gas=>min(G1-KeepGas,Gas),
-                                       cd=>CallData,
-                                       depth=>D+1
-                                      },
-                                     maps:with([extra,sload,get,trace,data],State)
-                                    )),
-       Bin=case Res of
-             {return, Bin1} -> Bin1;
-             eof -> <<1>>;
-             stop -> <<1>>;
-             _ -> <<0>>
-           end,
-       ?TRACE({callret, D, Address,Res,Bin}),
-       io:format("Callcode ret {done,~p,...} - ~p~n",[Res, Bin]),
-       {Bin,(G1-KeepGas)-GLeft,Xtra1,Stor1}
-  end,
-  RAM1=if(size(Return)>RetLen) ->
-           <<Ret1:RetLen/binary,_/binary>> = Return,
-           eevm_ram:write(RAM,RetOff,Ret1);
-         true ->
-           eevm_ram:write(RAM,RetOff,Return)
-       end,
-  Success=if Return==<<0>> -> 0;
-             true -> 1
-          end,
-
-  State#{stack=>[Success|Stack],
-         gas=>G1-GBurned,
-         return=>Return,memory=>RAM1,
-         extra=>NewXtra,storage:=NewStor};
-
-
-interp(call,#{stack:=[Gas,Address,_CallValue,ArgOff,ArgLen,RetOff,RetLen|Stack],
-                    gas:=G, get:=#{code:=GF}, data:=Data, depth:=D, memory:=RAM}=State) ->
-  OldXtra=maps:get(extra,State,#{}),
-  {Code,Xtra}=case GF(Address, OldXtra) of
-                {ok, Value, NewXtra1} ->
-                  {Value, NewXtra1};
-                Value when is_binary(Value) ->
-                  {Value, OldXtra}
-              end,
-  G1=(G-100),
-  KeepGas=G1 div 64,
-  {Return,GBurned,NewXtra}=
-  if Code==<<>> ->
-       ?TRACE({call, D, Address, nocode}),
-       {<<1:256/big>>,0,Xtra};
-     true ->
-       CallData=eevm_ram:read(RAM,ArgOff,ArgLen),
-       ?TRACE({call, D, Address,CallData}),
-       Stor0=maps:get({Address,state},Xtra, #{}),
-       {done,Res,
-        #{gas:=GLeft,storage:=St1}}=eevm:eval(Code,
-                                              Stor0,
-                                              maps:merge(
-                                                #{gas=>min(G1-KeepGas,Gas),
-                                                  cd=>CallData,
-                                                  depth=>D+1,
-                                                  data=>#{
-                                                          address=>Address,
-                                                          caller=>maps:get(address, Data),
-                                                          callvalue=>0,
-                                                          gasprice=>maps:get(gasprice,Data),
-                                                          origin=>maps:get(origin,Data)
-                                                         }
-                                                 },
-                                                maps:with([extra,sload,get,trace],State)
-                                               )),
-       %io:format("CAll new st ~p~n",[St1]),
-       Bin=case Res of
-             {return, Bin1} -> Bin1;
-             _ -> <<0>>
-           end,
-       ?TRACE({callret, D, Address,Res,Bin}),
-       if Stor0==St1 -> %state not changed
-            {Bin,(G1-KeepGas)-GLeft,Xtra};
-          true ->
-            Changes=[Address|maps:get(changed,Xtra,[])],
-            {Bin,(G1-KeepGas)-GLeft,
-             maps:put(changed, Changes,
-                      maps:put({Address,state},St1,Xtra)
-                     )
-            }
-       end
-  end,
-  RAM1=if(size(Return)>RetLen) ->
-           <<Ret1:RetLen/binary,_/binary>> = Return,
-           eevm_ram:write(RAM,RetOff,Ret1);
-         true ->
-           eevm_ram:write(RAM,RetOff,Return)
-       end,
-  Success=if Return==<<0>> -> 0;
-             true -> 1
-          end,
-
-  State#{stack=>[Success|Stack],
-         gas=>G1-GBurned,
-         return=>Return,
-         memory=>RAM1,
-         extra=>NewXtra};
-
 
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
   Value=eevm_ram:read(RAM,MemOff,MemLen),
@@ -806,11 +692,11 @@ calldata(call, #{address:=Address, value:=Value}, Data) ->
 call_ext(Method=staticcall,
          Code,
          Gas,
-         #{address:=Address}=CallArgs,
+         #{calldata:=CD,address:=Address}=CallArgs,
          Stor0,
          Xtra,
          #{depth:=D,data:=Data}=State) ->
-  CallData=calldata(Method,CallArgs,Data),
+
   ?TRACE({Method, D, Address,CallArgs}),
   {done,Res,
    #{gas:=GasLeft,
@@ -819,12 +705,13 @@ call_ext(Method=staticcall,
                               Stor0,
                               maps:merge(
                                 #{gas=>Gas,
-                                  cd=>CallData,
+                                  cd=>CD,
                                   depth=>D+1,
-                                  data=>CallData,
-                                  extra=>Xtra
+                                  data=>calldata(Method,CallArgs,Data),
+                                  extra=>Xtra,
+                                  static=>true
                                  },
-                                maps:with([sload,get,trace],State)
+                                maps:with([sload,get,trace,static],State)
                                )),
   {Bin,RetVal}=case Res of
         {return, Bin1} -> {Bin1,1};
@@ -840,11 +727,10 @@ call_ext(Method=staticcall,
 call_ext(Method,
          Code,
          Gas,
-         #{address:=Address}=CallArgs,
+         #{calldata:=CD,address:=Address}=CallArgs,
          Stor0,
          Xtra,
          #{depth:=D,data:=Data}=State) ->
-  CallData=calldata(Method,CallArgs,Data),
   ?TRACE({Method, D, Address,CallArgs}),
 
   {done,Res,
@@ -854,12 +740,12 @@ call_ext(Method,
                               Stor0,
                               maps:merge(
                                 #{gas=>Gas,
-                                  cd=>CallData,
+                                  cd=>CD,
                                   depth=>D+1,
                                   data=>calldata(Method, CallArgs, Data),
                                   extra=>Xtra
                                  },
-                                maps:with([sload,get,trace],State)
+                                maps:with([sload,get,trace,static],State)
                                )),
   {Bin,RetVal}=case Res of
         {return, Bin1} -> {Bin1,1};
