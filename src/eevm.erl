@@ -30,6 +30,7 @@ stop(_State) ->
                       },
              'cd'=>binary(),
              'sload'=>function(),
+             'static' => integer(),
              'embedded_code'=>map(),
              'get'=>#{
                       'balance'=>function(),
@@ -69,9 +70,11 @@ eval(Bytecode,Storage,State0) ->
                        memory=><<>>,
                        code=>Bytecode,
                        depth=>0,
+                       extra=>#{},
                        logger=>Logger
                       },State0#{data=>Data}),
     eevm_interpret:run(State).
+
 
 eval(Bytecode,Storage,State0,Function,Args) ->
     IFun = fun(B) -> {ok,E}=ksha3:hash(256, B), <<X:32/big,_/binary>> = E,X end(Function),

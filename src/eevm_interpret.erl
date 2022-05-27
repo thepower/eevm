@@ -10,31 +10,43 @@
 -define(MEM_WORDS(Bin), ((size(Bin) + 31) div 32)).
 -define(CMEM, fun() -> NewWords=(?MEM_WORDS(RAM1)-?MEM_WORDS(RAM)),(NewWords*NewWords)+(3*NewWords) end()).
 
--spec run(#{'code':=binary(), 'gas':=integer(), 'stack':=list(), 'memory':=binary(),
-            storage:=map(),
-            logger=>function(),
-            data:=#{
-                       'address':=integer(),
-                       'callvalue':=integer(),
-                       'caller':=integer(),
-                       'gasprice':=integer(),
-                       'origin':=integer()
-                      },
-            cd:=binary(),
+-type callinfo() :: #{
+                      'address':=integer(),
+                      'callvalue':=integer(),
+                      'caller':=integer(),
+                      'gasprice':=integer(),
+                      'origin':=integer()
+                     }.
+
+
+-spec run(#{'code':=binary(),
+            'gas':=integer(),
+            'stack':=list(),
+            'memory':=binary(),
+            'storage':=map(),
+            'logger'=>function(),
+            'data':=callinfo(),
+            'cd':=binary(),
+            'create':=fun((Value::integer(),Code::binary(),Acc::map()) -> {#{address:=integer()},map()}), 
             'get'=>#{
                       'balance'=>function(),
                       'code'=>function()
                      },
-            sload=>function(),
+            'sload'=>fun(),
+            'static' => integer(),
+            'embedded_code'=>map(),
+            'extra' := map(),
             trace=>pid()|undefined
             }) ->
-  {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{
-                                                                 gas:=integer(),
-                                                                 storage:=#{},
-                                                                 memory:=binary() }}
+  {'done', 'stop'|'invalid'|{'revert',binary()}|{'return',binary()}, #{
+                                                                       gas:=integer(),
+                                                                       storage:=#{},
+                                                                       memory:=binary(),
+                                                                       _ => _}}
   |
   {'error', 'nogas'|{'jump_to',integer()}|{'bad_instruction',any()}, #{
-                                                                       memory:=binary()
+                                                                       memory:=binary(),
+                                                                       _ => _
                                                                       }}.
 run(#{code:=Code}=State) ->
   run_next(0,Code,State).
@@ -682,25 +694,26 @@ call_embedded(_Method, Gas, #{calldata:=CallData}, EmbeddedFun, State) ->
   {Gas-100, RetCode, ReturnBin, State}.
 
 
+-spec callinfo(Method::atom(), CallArgs::map(), OldData::callinfo()) -> callinfo().
 
-calldata(staticcall, #{address:=Address}=_CallArgs, Data) ->
+callinfo(staticcall, #{address:=Address}=_CallArgs, Data) ->
   Data#{
     address=>Address,
     caller=>maps:get(address, Data),
     value=>0
    };
 
-calldata(callcode, _CallArgs, Data) ->
+callinfo(callcode, _CallArgs, Data) ->
   Data#{
     callvalue => 0,
     caller => maps:get(address, Data)
    };
 
-calldata(delegatecall, #{}, Data) ->
+callinfo(delegatecall, #{}, Data) ->
   Data#{
    };
 
-calldata(call, #{address:=Address, value:=Value}, Data) ->
+callinfo(call, #{address:=Address, value:=Value}, Data) ->
   Data#{
     address=>Address,
     caller=>maps:get(address, Data),
@@ -718,13 +731,15 @@ call_ext(Method=staticcall,
 
   ?TRACE({Method, D, Address,CallArgs}),
   
+  %#{'sload'=>fun(),'static'=>integer(),'embedded_code'=>map(),'get'=>#{'balance'=>fun(),'code'=>fun()},'trace'=>pid() | 'undefined'}
+
   case eevm:eval(Code,
                  Stor0,
                  maps:merge(
                    #{gas=>Gas,
                      cd=>CD,
                      depth=>D+1,
-                     data=>calldata(Method,CallArgs,Data),
+                     data=>callinfo(Method,CallArgs,Data),
                      extra=>Xtra,
                      static=>true
                     },
@@ -766,7 +781,7 @@ call_ext(Method,
                                 #{gas=>Gas,
                                   cd=>CD,
                                   depth=>D+1,
-                                  data=>calldata(Method, CallArgs, Data),
+                                  data=>callinfo(Method, CallArgs, Data),
                                   extra=>Xtra
                                  },
                                 maps:with([sload,get,trace,static],State)

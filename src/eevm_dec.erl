@@ -9,9 +9,7 @@ decode2list(Bin) ->
     {Opcode,Rest,_} ->
       [Opcode|decode2list(Rest)];
     {Opcode,Rest} ->
-      [Opcode|decode2list(Rest)];
-    _Any ->
-      []
+      [Opcode|decode2list(Rest)]
   end.
     
 
