@@ -137,6 +137,13 @@ runtest(Code,MyAddr,Caller,CValue,Extra) ->
                       address => Addr
                      },Ex2}
                 end,
+        finfun=>fun(_,_,#{data:=#{address:=Addr}, storage:=Stor, extra:=Xtra} = State) ->
+                    NewS=maps:merge(
+                           maps:get({Addr, state}, Xtra, #{}),
+                           Stor
+                          ),
+                    State#{extra=>Xtra#{{Addr, state} => NewS}}
+                end,
         sload=>fun(Addr, Key, State) ->
                    AddrSt=maps:get({Addr,state},State,#{}),
                    Res=maps:get(Key,AddrSt,0),

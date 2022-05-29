@@ -70,10 +70,11 @@ sstore_static_test() -> %check crash on call sstore inside static call
       Code=sstore_code(N),
       {done,
        {return,Ret},
-       #{extra:=X,storage:=St}=_State}=eevm:runtest(Code,16#100,16#101,0,
-                                                    #{{16#100,state}=>#{0=>4}}),
+       #{extra:=X}=_State}=eevm:runtest(Code,16#100,16#101,0,
+                                                    #{{16#100,state}=>#{0=>4}}
+                                                   ),
       io:format("Call ~10s ~p~n", [N,Ret]),
-      io:format("~p~n",[{X,St}]),
+      io:format("~p~n",[X]),
       {N,Ret}
   end, [<<"call">>,<<"staticcall">>,<<"callcode">>,<<"delegatecall">>]),
   [

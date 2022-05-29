@@ -102,7 +102,7 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
   end.
 
 finish(Res, Reason, #{finfun:=FinFun}=State) when is_function(FinFun) ->
-  {Res, Reason, FinFun(State)};
+  {Res, Reason, FinFun(Res,Reason,State)};
 
 finish(Res, Reason, State) ->
   {Res, Reason, State}.
