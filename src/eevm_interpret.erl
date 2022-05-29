@@ -29,15 +29,16 @@
             'cd':=binary(),
             'create':=fun((Value::integer(),Code::binary(),Acc::map()) -> {#{address:=integer()},map()}), 
             'get'=>#{
-                      'balance'=>function(),
-                      'code'=>function()
-                     },
+                     'balance'=>function(),
+                     'code'=>function()
+                    },
             'sload'=>fun(),
+            'finfun' => fun(),
             'static' => integer(),
             'embedded_code'=>map(),
             'extra' := map(),
-            trace=>pid()|undefined
-            }) ->
+            'trace'=>pid()|undefined
+}) ->
   {'done', 'stop'|'invalid'|{'revert',binary()}|{'return',binary()}, #{
                                                                        gas:=integer(),
                                                                        storage:=#{},
@@ -61,9 +62,9 @@ allow_opcode(true, _) -> true.
 
 run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
   if(Gas<1) ->
-      {error, nogas, State};
+      finish(error,nogas,State);
     Code == <<>> ->
-      {done, eof, State};
+      finish(done, eof, State);
     true ->
       ?TRACE({stack, D, Stack}),
       {Inst,Rest,NextPC}=case eevm_dec:decode(Code) of
@@ -75,11 +76,11 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
       ?TRACE({opcode, D, {PC, Inst}}),
       case allow_opcode(maps:is_key(static,State), Inst) of
         false ->
-          {fin, invalid, State#{pc=>PC}};
+          finish(fin, invalid, State#{pc=>PC});
         true ->
           case interp(Inst,State#{pc=>PC}) of
             {fin, Reason, S2} ->
-              {done,Reason,S2};
+              finish(done,Reason,S2);
             {goto,Dst,S2} ->
               <<_:Dst/binary,JmpOpcode:8/integer,NewCode/binary>> =maps:get(code,State),
               case JmpOpcode of
@@ -88,17 +89,23 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
                   run_next(Dst+1,NewCode,S2);
                 Other ->
                   ?TRACE({jump_error, D, Other}),
-                  {error, {jump_to, Other}, State}
+                  finish(error, {jump_to, Other}, State)
               end;
             {return, Data, S2} ->
-              {done,{return,Data},S2};
+              finish(done,{return,Data},S2);
             {error,{bad_instruction,_}=Reason,State} ->
-              {error,Reason,State};
+              finish(error,Reason,State);
             S2 when is_map(S2) ->
               run_next(NextPC,Rest,S2)
           end
       end
   end.
+
+finish(Res, Reason, #{finfun:=FinFun}=State) when is_function(FinFun) ->
+  {Res, Reason, FinFun(State)};
+
+finish(Res, Reason, State) ->
+  {Res, Reason, State}.
 
 %-=[ 0x00 ]=-
 
