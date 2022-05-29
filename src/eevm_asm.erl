@@ -20,9 +20,7 @@ assemble(Text) ->
   assemble(Text, #{}).
 
 assemble(Text, Data) ->
-  eevm_asm:asm(
-    eevm_asm:parse_asm(Text,Data)
-   ).
+  asm( parse_asm(Text,Data)).
 
 estimate_size(Src) when is_list(Src) ->
   lists:foldl(
@@ -117,23 +115,31 @@ parse_asm(Code) when is_binary(Code) ->
 
 parse_asm(Code, Data) when is_binary(Code) ->
   process_labels(
+    lists:flatten(
     lists:filtermap(
       fun(Line) ->
           L1=iolist_to_binary(re:replace(Line,"\/\/.*",<<>>)),
-          L2=iolist_to_binary(re:replace(L1,"(^\s+|\s+$)",<<>>)),
-          L3=iolist_to_binary(re:replace(L2,"\s+",<<" ">>)),
+          L2=iolist_to_binary(re:replace(L1,"(^\s+|\s+$)",<<>>,[global])),
+          L3=iolist_to_binary(re:replace(L2,"\s+",<<" ">>,[global])),
           if(L3==<<>>) ->
               false;
             true ->
-              List = string:split(
+              LineList=binary:split(L3, <<";">>, [global]),
+              {true,
+               lists:map(
+                 fun(LL0) ->
+                     LL=iolist_to_binary(re:replace(LL0,"(^\s+|\s+$)",<<>>,[global])),
+                     List = string:split(
                        string:lowercase(
-                         binary_to_list(L3)
+                         binary_to_list(LL)
                         )," ",all),
-              {true,parse_line(List, Data)}
+                     parse_line(List, Data)
+                 end, LineList)
+              }
           end
       end,
       binary:split(Code,<<"\n">>,[global])
-     )).
+     ))).
 
 process_labels(List) ->
   Labels=lists:foldl(

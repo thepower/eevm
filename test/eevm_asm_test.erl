@@ -3,13 +3,12 @@
 -include_lib("eunit/include/eunit.hrl").
 
 asm_test() ->
+  %do not try to run this code, it's just to test assembler
   Asm= <<"
 push label1
 push a
 PUSH 0x10 
-sload
-push 1
-add
+sload ; push 1 ; add
 dup1
 SSTORE
 push 0
