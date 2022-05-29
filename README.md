@@ -57,6 +57,5 @@ If you like to do automatic code recompilation after editing, you can uncomment 
 
 ## TO FIX
 
-- signed arithmetic (slt opcode)
 - check RAM expansion gas calculation
 
