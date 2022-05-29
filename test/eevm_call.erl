@@ -3,7 +3,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 sstore_scode() ->
-  Code=eevm:asm(eevm:parse_asm(
+  Code=eevm_asm:assemble(
 <<"
 push1 0
 sload
@@ -18,8 +18,8 @@ sstore
 push1 32
 push1 0
 return
-  ">>)),
-  Code2Mem=eevm_scratchpad:code2mem(Code,0),
+  ">>),
+  Code2Mem=eevm_asm:code2mem(Code,0),
 
   DeployCode=list_to_binary([
                              Code2Mem,
@@ -27,7 +27,7 @@ return
                              return">>
                             ]),
   list_to_binary(
-    eevm_scratchpad:code2mem(eevm:asm(eevm:parse_asm(DeployCode)),0)
+    eevm_asm:code2mem(eevm_asm:assemble(DeployCode),0)
    ).
 
 sstore_code(Call) ->
@@ -62,7 +62,7 @@ push1 0
 return
 ">>]),
   %io:format("----~n~s~n~n",[C]),
-  eevm:asm(eevm:parse_asm(C)).
+  eevm_asm:assemble(C).
 
 sstore_static_test() -> %check crash on call sstore inside static call
   Res=lists:map(
@@ -70,7 +70,7 @@ sstore_static_test() -> %check crash on call sstore inside static call
       Code=sstore_code(N),
       {done,
        {return,Ret},
-       #{extra:=X}=_State}=eevm:runtest(Code,16#100,16#101,0,
+       #{extra:=X}=_State}=eevm_test:runtest(Code,16#100,16#101,0,
                                                     #{{16#100,state}=>#{0=>4}}
                                                    ),
       io:format("Call ~10s ~p~n", [N,Ret]),
@@ -88,7 +88,7 @@ sstore_static_test() -> %check crash on call sstore inside static call
 
 
 calltestinfo() ->
-  Code=eevm:asm(eevm:parse_asm(
+  Code=eevm_asm:assemble(
 <<"
 address
 push1 0
@@ -109,8 +109,8 @@ mstore
 push1 128
 push1 0
 return
-  ">>)),
-  Code2Mem=eevm_scratchpad:code2mem(Code,0),
+  ">>),
+  Code2Mem=eevm_asm:code2mem(Code,0),
 
   DeployCode=list_to_binary([
                              Code2Mem,
@@ -118,7 +118,7 @@ return
                              return">>
                             ]),
   list_to_binary(
-    eevm_scratchpad:code2mem(eevm:asm(eevm:parse_asm(DeployCode)),0)
+    eevm_asm:code2mem(eevm_asm:assemble(DeployCode),0)
    ).
 
 callcode(Call) ->
@@ -150,7 +150,7 @@ push1 0
 return
 ">>]),
   %io:format("----~n~s~n~n",[C]),
-  eevm:asm(eevm:parse_asm(C)).
+  eevm_asm:assemble(C).
 
 %  [
 %   {parent,
@@ -193,7 +193,7 @@ call2_test() ->
       {done,
        {return,
         <<A1:256/big,A2:256/big,A3:256/big,A4:256/big>>
-       },_State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+       },_State}=eevm_test:runtest(Code,16#100,16#101,0,#{}),
       io:format("Call ~10s ~10B ~10B ~10B ~10B~n", [N,A1,A2,A3,A4]),
       {N,A1,A2,A3,A4}
   end, [<<"call">>,<<"staticcall">>,<<"callcode">>,<<"delegatecall">>]),
@@ -208,7 +208,7 @@ call2_test() ->
 
 
 call1_test() ->
-  Code=eevm:asm(eevm:parse_asm(
+  Code=eevm_asm:assemble(
 <<"
 push16 38
 push32 0x63000003e8600055716000546001018060005560005260206000F360701B6000
@@ -258,8 +258,8 @@ returndatacopy
 push1 0
 return
 
-">>)),
-  {done,Ret,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+">>),
+  {done,Ret,State}=eevm_test:runtest(Code,16#100,16#101,0,#{}),
   [
    ?assertMatch({return,<<1002:256/big>>},Ret),
    ?assertMatch(#{extra:=#{}}, State),
@@ -267,7 +267,7 @@ return
   ].
 
 returndatasize_test() ->
-  Code=eevm:asm(eevm:parse_asm( <<"
+  Code=eevm_asm:assemble(<<"
 PUSH32 0x7F7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 PUSH1 0
 MSTORE
@@ -296,9 +296,9 @@ STATICCALL
 pop
 // Now we should have our return data size of 32
 RETURNDATASIZE
-    ">>)),
+    ">>),
 
-  {done,_,State}=eevm:runtest(Code,16#100,16#101,0,#{}),
+  {done,_,State}=eevm_test:runtest(Code,16#100,16#101,0,#{}),
   [
    ?assertMatch(#{stack:=[32,_]}, State),
    ?assert(true)
@@ -306,7 +306,7 @@ RETURNDATASIZE
 
 
 embedded_call2_test() ->
-  Code=eevm:asm(eevm:parse_asm( <<"
+  Code=eevm_asm:assemble( <<"
 // First place the parameters in memory
 PUSH5 0x68656C6C6F // data
 PUSH1 0
@@ -324,7 +324,7 @@ STATICCALL
 // Put the result alone on the stack
 PUSH1 0x20
 MLOAD
-    ">>)),
+    ">>),
 
   Sha2 = fun(Data) ->
              Hash=crypto:hash(sha256,Data),
@@ -349,7 +349,7 @@ MLOAD
   ].
 
 embedded_call3_test() ->
-  Code=eevm:asm(eevm:parse_asm( <<"
+  Code=eevm_asm:assemble( <<"
 // First place the parameters in memory
 PUSH1 0xff // data
 PUSH1 0
@@ -367,7 +367,7 @@ STATICCALL
 // Put the result alone on the stack
 PUSH1 0x20
 MLOAD
-    ">>)),
+    ">>),
 
   Ripemd = fun(Data) ->
              <<Hash:20/binary,_/binary>> = crypto:hash(ripemd160,Data),

@@ -18,7 +18,7 @@ push1 0
 return
 ">>,
   io:format("~s~n",[Asm]),
-  Code=eevm:asm(eevm:parse_asm(Asm)),
+  Code=eevm_asm:assemble(Asm),
   (Code).
 
 sload_test() ->

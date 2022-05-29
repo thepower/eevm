@@ -587,12 +587,12 @@ interp(CALL, #{data:=#{address:=Self},
                       {Value, OldXtra}
                   end,
       if Code==<<>> ->
-           State#{stack=>[1|Stack],gas=>G1,return=><<2:256/big>>,extra=>Xtra};
+           State#{stack=>[1|Stack],gas=>G1,return=><<0:256/big>>,extra=>Xtra};
          true ->
-           {Stor0,RS}=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
-                           {Storage0,true};
+           Stor0=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
+                      Storage0;
                     true ->
-                           {#{},false}
+                      #{}
                  end,
            {GasLeft,RetCode,ReturnBin,NewXtra,Stor1}=call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra, State),
            Burned=GPassed-GasLeft,
@@ -604,24 +604,12 @@ interp(CALL, #{data:=#{address:=Self},
                eevm_ram:write(RAM,RetOff,ReturnBin)
            end,
 
-           case RS of
-             false ->
-               SaveStore=maps:merge(
-                           maps:get({Address,state},NewXtra,#{}),
-                           Stor1),
-               State#{stack=>[RetCode|Stack],
-                      gas=>G1-Burned,
-                      return=>ReturnBin,
-                      memory=>RAM1,
-                      extra=>NewXtra#{{Address,state} => SaveStore}};
-             true ->
-               State#{stack=>[RetCode|Stack],
-                      gas=>G1-Burned,
-                      storage:=Stor1,
-                      return=>ReturnBin,
-                      memory=>RAM1,
-                      extra=>NewXtra}
-           end
+           State#{stack=>[RetCode|Stack],
+                  gas=>G1-Burned,
+                  storage:=Stor1,
+                  return=>ReturnBin,
+                  memory=>RAM1,
+                  extra=>NewXtra}
       end
   end;
 

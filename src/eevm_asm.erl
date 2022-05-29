@@ -1,7 +1,7 @@
 -module(eevm_asm).
 -export([disassemble/1, assemble/1, assemble/2]).
 
--export([parse_asm/1,parse_asm/2,asm/1]).
+-export([parse_asm/1, parse_asm/2, asm/1, code2mem/2]).
 
 disassemble(Code) when is_binary(Code) ->
   lists:flatten(
@@ -159,3 +159,23 @@ process_labels(List) ->
     end, List),
   List.
 
+code2mem(Code,Off) ->
+  [if(Off==0) ->
+       CodeS=size(Code),
+       Size=max(1,ceil(ceil(math:log(max(CodeS,2))/math:log(2)) / 8)),
+       io_lib:format("push~w ~w~n",[Size,CodeS]);
+     true ->
+      []
+  end,
+  if(size(Code)>32) ->
+      <<ThisCode:32/binary,Rest/binary>> = Code,
+      [
+      io_lib:format("push32 0x~s~npush1 ~w~nmstore~n",[tohex(ThisCode),Off])
+      | code2mem(Rest,Off+32)];
+    true ->
+      [io_lib:format("push~w 0x~s~npush1 ~w~nshl~npush1 ~w~nmstore~n",
+                     [size(Code),tohex(Code),8*(32-size(Code)),Off])]
+  end].
+
+tohex(Bin) ->
+  io_lib:format("~.16B",[binary:decode_unsigned(Bin)]).

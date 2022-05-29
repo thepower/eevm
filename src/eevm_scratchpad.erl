@@ -1,6 +1,11 @@
 -module(eevm_scratchpad).
 -compile([export_all,nowarn_export_all]).
 
+%this file contains scrathpad code for experements. It might not work!!!
+%some code in this file requires hex module, it was removed from this repo
+%to avoid conflict with tpnode code. You can obtain hex.erl at
+%https://raw.githubusercontent.com/cleverfox/evm_scratchpad/fc431af59afbf1c2e495e7e4614b696f05db7fe7/src/hex.erl
+
 load(Filename) ->
   {ok, ERC20Hex } = file:read_file(Filename),
   [ H | _ ] = binary:split(ERC20Hex, <<"\n">>),
