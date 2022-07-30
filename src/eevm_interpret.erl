@@ -430,7 +430,7 @@ interp(jumpi,#{stack:=[Dst,0|Stack]}=State) ->
   ?TRACE({jumpi, {Dst,false}}),
   State#{stack=>Stack};
 
-interp(jumpi,#{stack:=[Dst,N|Stack]}=State) when N>0 ->
+interp(jumpi,#{stack:=[Dst,_NonZero|Stack]}=State) ->
   ?TRACE({jumpi, {Dst,true}}),
   {goto,Dst,State#{stack=>Stack}};
 
