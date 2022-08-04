@@ -610,14 +610,18 @@ interp(CALL, #{data:=#{address:=Self},
                     true ->
                       #{}
                  end,
-           Xtra0=case maps:is_key(cb_beforecall, State) of
-                   false -> Xtra;
-                   true ->
-                     Fun=maps:get(cb_beforecall, State),
-                     Fun(CALL,Self,Code,GPassed, CallArgs, Xtra)
-                 end,
+           {GasLeft,RetCode,ReturnBin,NewXtra,Stor1}=try
+                                                       Xtra0=case maps:is_key(cb_beforecall, State) of
+                                                               false -> Xtra;
+                                                               true ->
+                                                                 Fun=maps:get(cb_beforecall, State),
+                                                                 Fun(CALL,Self,Code,GPassed, CallArgs, Xtra)
+                                                             end,
 
-           {GasLeft,RetCode,ReturnBin,NewXtra,Stor1}=call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra0, State),
+                                                       call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra0, State)
+                                                     catch throw:{cancel_call,_Reason} ->
+                                                             {GPassed, 0, <<>>, Xtra, Stor0}
+                                                     end,
            Burned=GPassed-GasLeft,
 
            RAM1=if(size(ReturnBin)>MaxRetLen) ->
