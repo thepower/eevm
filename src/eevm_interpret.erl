@@ -33,6 +33,7 @@
                      'code'=>function()
                     },
             'sload'=>fun(),
+            'cb_beforecall' => fun(),
             'finfun' => fun(),
             'static' => integer(),
             'embedded_code'=>map(),
@@ -609,7 +610,14 @@ interp(CALL, #{data:=#{address:=Self},
                     true ->
                       #{}
                  end,
-           {GasLeft,RetCode,ReturnBin,NewXtra,Stor1}=call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra, State),
+           Xtra0=case maps:is_key(cb_beforecall, State) of
+                   false -> Xtra;
+                   true ->
+                     Fun=maps:get(cb_beforecall, State),
+                     Fun(CALL,Self,Code,GPassed, CallArgs, Xtra)
+                 end,
+
+           {GasLeft,RetCode,ReturnBin,NewXtra,Stor1}=call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra0, State),
            Burned=GPassed-GasLeft,
 
            RAM1=if(size(ReturnBin)>MaxRetLen) ->
