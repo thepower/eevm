@@ -47,8 +47,9 @@ stop(_State) ->
 
 
 eval(Bytecode,Storage,State0) ->
-  Logger=fun(Message,Args) ->
-             io:format("LOG: ~p~n\targs ~p~n",[Message,Args])
+  Logger=fun(Message,Args,Xtra) ->
+             io:format("LOG: ~p~n\targs ~p~n",[Message,Args]),
+             Xtra
          end,
   Data=maps:merge(
          #{
