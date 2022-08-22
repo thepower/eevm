@@ -770,7 +770,7 @@ call_ext(Method=staticcall,
                      extra=>Xtra,
                      static=>true
                     },
-                   maps:with([sload,get,trace,static],State)
+                   maps:with([logger,sload,get,trace,static],State)
                   )) of
     {done,Res,
      #{gas:=GasLeft,
@@ -811,7 +811,7 @@ call_ext(Method,
                                   data=>callinfo(Method, CallArgs, Data),
                                   extra=>Xtra
                                  },
-                                maps:with([sload,get,trace,static],State)
+                                maps:with([logger,sload,get,trace,static],State)
                                )),
   {Bin,RetVal}=case Res of
         {return, Bin1} -> {Bin1,1};
@@ -830,7 +830,7 @@ call_ext(Method,
         RetVal,
         Bin,
         maps:put(changed, Changes,
-                 maps:put({Address,state},Stor1,Xtra)
+                 maps:put({Address,state},Stor1,Xtra1)
                 ),
         Stor1
        }
