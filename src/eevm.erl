@@ -47,7 +47,7 @@ stop(_State) ->
 
 
 eval(Bytecode,Storage,State0) ->
-  Logger=fun(Message,Args,Xtra) ->
+  Logger=fun(Message,Args,Xtra,_) ->
              io:format("LOG: ~p~n\targs ~p~n",[Message,Args]),
              Xtra
          end,

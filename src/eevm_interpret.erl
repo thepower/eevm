@@ -515,31 +515,31 @@ interp({swap,16},#{stack:=[A,X1,X2,X3,X4,X5,X6,X7,X8,X9,X10,X11,X12,X13,X14,X15,
 interp({log,0},#{stack:=[Offset,Len|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
-  Xtra1=Logger(BValue,[],Xtra),
+  Xtra1=Logger(BValue,[],Xtra,State),
   State#{stack=>Stack,gas=>G-375,extra=>Xtra1};
 
 interp({log,1},#{stack:=[Offset,Len,Topic0|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
-  Xtra1=Logger(BValue,[Topic0],Xtra),
+  Xtra1=Logger(BValue,[Topic0],Xtra,State),
   State#{stack=>Stack,gas=>G-750,extra=>Xtra1};
 
 interp({log,2},#{stack:=[Offset,Len,Topic0,Topic1|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
-  Xtra1=Logger(BValue,[Topic0,Topic1],Xtra),
+  Xtra1=Logger(BValue,[Topic0,Topic1],Xtra,State),
   State#{stack=>Stack,gas=>G-1125,extra=>Xtra1};
 
 interp({log,3},#{stack:=[Offset,Len,Topic0,Topic1, Topic2|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
-  Xtra1=Logger(BValue,[Topic0,Topic1,Topic2],Xtra),
+  Xtra1=Logger(BValue,[Topic0,Topic1,Topic2],Xtra,State),
   State#{stack=>Stack,gas=>G-1500,extra=>Xtra1};
 
 interp({log,4},#{stack:=[Offset,Len,Topic0,Topic1, Topic2, Topic3|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
-  Xtra1=Logger(BValue,[Topic0,Topic1,Topic2,Topic3],Xtra),
+  Xtra1=Logger(BValue,[Topic0,Topic1,Topic2,Topic3],Xtra,State),
   State#{stack=>Stack,gas=>G-1875,extra=>Xtra1};
 
 interp(create, #{stack:=[Value,MemOff,Len|Stack],
