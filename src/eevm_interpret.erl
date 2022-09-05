@@ -239,9 +239,16 @@ interp(sar,#{stack:=[Off,SA|Stack], gas:=G}=State) ->
 
 %-=[ 0x20 ]=-
 
+interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM, gas:=G, sha3:=Fun}=State) ->
+  RamData=eevm_ram:read(RAM,Off,Len),
+  Hash=Fun(RamData),
+  Value = binary:decode_unsigned(Hash),
+  ?TRACE({sha3, {Len,Off,RamData,Hash}}),
+  Gas=30+(6*((Len+31) div 32)),
+  State#{stack=>[Value|Stack], gas=>G-Gas};
+
 interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM, gas:=G}=State) ->
   RamData=eevm_ram:read(RAM,Off,Len),
-  %Hash=crypto:hash(sha256,RamData),
   {ok,Hash}=ksha3:hash(256, RamData),
   Value = binary:decode_unsigned(Hash),
   ?TRACE({sha3, {Len,Off,RamData,Hash}}),
