@@ -88,3 +88,9 @@ where
 | `LOG`  | Contains data sent to EVM interpreter by the smart-contract                        |
 
 Also, you can see the final state after 3 transactions are finished.
+
+## TO-DO
+
+- Add self-destruction opcode.
+- Add EVM tests.
+- Check  gas calculation.
