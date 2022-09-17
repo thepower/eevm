@@ -4,7 +4,7 @@
 
 EEVM runs Solidity code compiled by `solc` without any modifications.
 
-This implementation only requires KECCAK-256 library as dependence. It uses [KSHA3](github.com/onyxrev/ksha3) by default, but there is also slow, but pure-erlang [ESHA3](github.com/cleverfox/esha3) implemantation used by various utilities. This implementation needs to be escriptized (packed into one `escript`-runnable file).
+This implementation only requires KECCAK-256 library as dependence. It uses [KSHA3](github.com/onyxrev/ksha3) by default, but there is also slow, but pure-erlang [ESHA3](github.com/cleverfox/esha3) implemantation used by various utilities. This pure-erlang implementation can be escriptized (packed into one `escript`-runnable file).
 
 ## Interpreter
 
@@ -12,17 +12,9 @@ The Erlang VM interpreter is used.
 
 ## Prerequisites
 
-### Hardware
-
-| CPU cores | Memory       | Hard disk                     | Network             |
-|-----------|--------------|-------------------------------|---------------------|
-| 2         | 2 GB or more | Minimum: 20 GB, SSD preferred | Minimum: 100 Mbit/s |
-
-### Software
-
-| OS             | Erlang version | Eshell version | Docker version                         |
-|----------------|----------------|----------------|----------------------------------------|
-| Ubuntu v.20.04 | 22 or upper    | 10.4           | latest (20.10.18 as of September 2022) |
+| Erlang version |
+|----------------|
+| 22 or upper    |
 
 ## Usage
 
