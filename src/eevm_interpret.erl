@@ -94,8 +94,8 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
               end;
             {return, Data, S2} ->
               finish(done,{return,Data},S2);
-            {error,{bad_instruction,_}=Reason,State} ->
-              finish(error,Reason,State);
+            {error,{bad_instruction,_}=Reason,S2} ->
+              finish(error,Reason,S2);
             S2 when is_map(S2) ->
               run_next(NextPC,Rest,S2)
           end
