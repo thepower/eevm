@@ -1,24 +1,44 @@
-# eevm is Etherium's EVM inside Erlang VM
+# EEVM
 
-It still in alpha status, and it's definitely not production ready yet.
+**EEVM** is an EVM implementation for Erlang Virtual Machine. It is developed by [ThePower](https://github.com/thepower) project for embedding into ThePower blockchain, but it is perfectly isolated from ThePower node code and can be easily embedded in any Erlang application.
 
-# How to build
+EEVM runs Solidity code compiled by `solc` without any modifications.
+
+This implementation only requires KECCAK-256 library as dependence. It uses [KSHA3](github.com/onyxrev/ksha3) by default, but there is also slow, but pure-erlang [ESHA3](github.com/cleverfox/esha3) implemantation used by various utilities. This pure-erlang implementation can be escriptized (packed into one `escript`-runnable file).
+
+## Interpreter
+
+The Erlang VM interpreter is used.
+
+## Prerequisites
+
+| Erlang version |
+|----------------|
+| 22 or upper    |
+
+## Usage
+
+### How to build EEVM?
+
+To build EEVM, run:
 
 ```
 ./rebar3 compile
 ```
 
-# How to run
+### How to run EEVM?
+
+Use the following command, to run EEVM:
 
 ```
 ./rebar3 shell
 ```
 
-You get in Erlang shell. In shell you can run tests from eevm_scratchpad.erl, look at the code in eevm_scratchpad and play with it. You can start playing with `eevm_scratchpad:tether().`, it's USDT ERC20 contract stolen from ETH.
+After you run the command, you'll get into the Erlang shell. This shell allows you to run tests from `eevm_scratchpad.erl`. You can look through the code and play with it. In the example below, you'll play with `eevm_scratchpad:tether()`.
 
-After doing this you will get something like this
+After running the test, you will get something like this:
 
-```
+```bash
 > eevm_scratchpad:tether().
 St1 #{0 => 49374,1 => 131072,3 => 0,4 => 0,7 => 0,8 => 0,9 => 3,10 => 0,
       67310910001236471336487740600394280602614355732742098307022882807426235821668 =>
@@ -51,11 +71,18 @@ Bals 130973/5/94
       1}
 ```
 
-Here you can see St1 - it's contract's storage after deployment, Bals lines is returning value of balanceOf call for 3 address used in test. LOG lines is emited by smartcontract data. Also you can see final state after 3 transcations finished.
+where
 
-If you like to do automatic code recompilation after editing, you can uncomment sync dep in rebar.config before building and start sync by issuing `sync:go().` in shell.
+| Field  | Description                                                                        |
+|--------|------------------------------------------------------------------------------------|
+| `St1`  | A storage, where the smart contract is stored                                      |
+| `Bals` | Returns the value of `balanceOf` call for three addresses used in the example test |
+| `LOG`  | Contains data sent to EVM interpreter by the smart-contract                        |
 
-## TO FIX
+Also, you can see the final state after 3 transactions are finished.
 
-- check RAM expansion gas calculation
+## TO-DO
 
+- Add self-destruction opcode.
+- Add EVM tests.
+- Check  gas calculation.
