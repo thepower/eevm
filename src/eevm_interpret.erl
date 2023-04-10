@@ -94,8 +94,8 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
               end;
             {return, Data, S2} ->
               finish(done,{return,Data},S2);
-            {error,{bad_instruction,_}=Reason,State} ->
-              finish(error,Reason,State);
+            {error,{bad_instruction,_}=Reason,S2} ->
+              finish(error,Reason,S2);
             S2 when is_map(S2) ->
               run_next(NextPC,Rest,S2)
           end
@@ -662,6 +662,9 @@ interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
 interp(invalid,State) ->
   {fin, invalid, State};
 
+interp(Instr,#{bad_instruction:=BIF}=State) when is_function(BIF,2) ->
+  BIF(Instr,State);
+
 interp(Instr,State) ->
   {error,{bad_instruction,Instr},State}.
 
@@ -722,6 +725,11 @@ call_args(staticcall, [Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], RAM) ->
     return_len => RetLen,
     stack => Stack
    }.
+
+call_embedded(_Method, Gas, #{calldata:=CallData}, EmbeddedFun, State) when
+    is_function(EmbeddedFun, 2)->
+  {RetCode, ReturnBin, State}=EmbeddedFun(CallData, State),
+  {Gas-100, RetCode, ReturnBin, State};
 
 call_embedded(_Method, Gas, #{calldata:=CallData}, EmbeddedFun, State) ->
   {RetCode, ReturnBin}=EmbeddedFun(CallData),
