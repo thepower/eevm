@@ -83,6 +83,7 @@ decode(<<16#59, Rest/binary>>) -> {msize,Rest};
 decode(<<16#5a, Rest/binary>>) -> {gas,Rest};
 decode(<<16#5b, Rest/binary>>) -> {jumpdest,Rest};
 
+decode(<<16#5f, Rest/binary>>) -> {push0,Rest};
 decode(<<Push, Rest/binary>>) when Push>=16#60 andalso Push<16#80 ->
   Len=Push-16#5F,
   Len8=Len*8,

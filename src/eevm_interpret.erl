@@ -454,6 +454,8 @@ interp(gas, #{stack:=Stack, gas:=G}=State) ->
 interp(jumpdest,State) ->
   State;
 
+interp(push0,#{stack:=Stack, gas:=G}=State) ->
+  State#{stack=>[0|Stack], gas=>G-3};
 %-=[ 0x60 ]=-
 
 interp({push,_,Value},#{stack:=Stack, gas:=G}=State) ->

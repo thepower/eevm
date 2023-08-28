@@ -385,11 +385,17 @@ mkenc(N) ->
       io_lib:format("encode({~s,~w,Data}) -> <<16#~.16B:8/big,Data:~w/big>>;~n",
                     [Atom,Len,N,Len*8]);
     {Int,Bin} when is_integer(Int), is_binary(Bin) ->
+      %this allow compile back non fully decoded code
+      %io_lib:format("encode(16#~.16B) -> <<16#~.16B:8/big>>;~n",
+      %              [Int,Int])
       []
   end.
 
 cg() ->
-  file:write_file("src/eevm_enc.erl",
+  cg("src/eevm_enc.erl").
+
+cg(Path) ->
+  file:write_file(Path,
   list_to_binary(
     [
      "-module(eevm_enc).\n",

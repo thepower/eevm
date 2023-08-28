@@ -66,6 +66,7 @@ encode('pc') -> <<16#58:8/big>>;
 encode('msize') -> <<16#59:8/big>>;
 encode('gas') -> <<16#5A:8/big>>;
 encode('jumpdest') -> <<16#5B:8/big>>;
+encode('push0') -> <<16#5F:8/big>>;
 encode({push,1,Data}) -> <<16#60:8/big,Data:8/big>>;
 encode({push,2,Data}) -> <<16#61:8/big,Data:16/big>>;
 encode({push,3,Data}) -> <<16#62:8/big,Data:24/big>>;
