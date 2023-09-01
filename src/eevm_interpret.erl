@@ -578,7 +578,7 @@ interp(return,#{stack:=[Off,Len|Stack], memory:=RAM}=State) ->
   ?TRACE({return, Value}),
   {return,Value,State#{stack=>Stack}};
 
-interp(CALL, #{data:=#{address:=Self},
+interp(CALL, #{data:=#{address:=Self}=Data,
                storage:=Storage0,
                stack:=[PassGas,Address|_]=Stack0,
                get:=#{code:=GF},
@@ -595,7 +595,7 @@ interp(CALL, #{data:=#{address:=Self},
   GPassed=min(G1-KeepGas,PassGas),
 
   if(is_function(EmbeddedFun)) ->
-      {GasLeft, RetCode, ReturnBin, Xtra} = call_embedded(CALL, GPassed, CallArgs, EmbeddedFun, OldXtra),
+      {GasLeft, RetCode, ReturnBin, Xtra} = call_embedded(CALL, GPassed, CallArgs#{data=>Data}, EmbeddedFun, OldXtra),
       Burned=GPassed-GasLeft,
 
       RAM1=if(size(ReturnBin)>MaxRetLen) ->
@@ -730,8 +730,13 @@ call_args(staticcall, [Gas,Address,ArgOff,ArgLen,RetOff,RetLen|Stack], RAM) ->
 
 call_embedded(_Method, Gas, #{calldata:=CallData}, EmbeddedFun, State) when
     is_function(EmbeddedFun, 2)->
-  {RetCode, ReturnBin, State}=EmbeddedFun(CallData, State),
-  {Gas-100, RetCode, ReturnBin, State};
+  {RetCode, ReturnBin, State2}=EmbeddedFun(CallData, State),
+  {Gas-100, RetCode, ReturnBin, State2};
+
+call_embedded(_Method, Gas, #{calldata:=CallData}=All, EmbeddedFun, State) when
+    is_function(EmbeddedFun, 3)->
+  {RetCode, ReturnBin, State2}=EmbeddedFun(CallData, All, State),
+  {Gas-100, RetCode, ReturnBin, State2};
 
 call_embedded(_Method, Gas, #{calldata:=CallData}, EmbeddedFun, State) ->
   {RetCode, ReturnBin}=EmbeddedFun(CallData),
