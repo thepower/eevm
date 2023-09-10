@@ -824,23 +824,24 @@ call_ext(Method,
   {done,Res,
    #{gas:=GasLeft,
      storage:=Stor1,
-     extra:=Xtra1}}=eevm:eval(Code,
-                              Stor0,
-                              maps:merge(
-                                #{gas=>Gas,
-                                  cd=>CD,
-                                  depth=>D+1,
-                                  data=>callinfo(Method, CallArgs, Data),
-                                  extra=>Xtra
-                                 },
-                                maps:with([logger,sload,get,trace,static],State)
-                               )),
+     extra:=Xtra1}=S2}=eevm:eval(Code,
+                                 Stor0,
+                                 maps:merge(
+                                   #{gas=>Gas,
+                                     cd=>CD,
+                                     depth=>D+1,
+                                     data=>callinfo(Method, CallArgs, Data),
+                                     extra=>Xtra
+                                    },
+                                   maps:with([logger,sload,get,trace,static],State)
+                                  )),
   {Bin,RetVal}=case Res of
-        {return, Bin1} -> {Bin1,1};
-        eof -> {<<1>>,1};
-        stop -> {<<1>>,1};
-        _ -> {<<0>>,0}
-      end,
+                 {return, Bin1} -> {Bin1,1};
+                 {revert,Bin1} -> throw({revert, Bin1,GasLeft});
+                 eof -> {<<1>>,1};
+                 stop -> {<<1>>,1};
+                 _ -> {<<0>>,0}
+               end,
   ?TRACE({callret, D, Address,Res,Bin}),
   %io:format("Callcode ret {done,~p,...} -> ~p~n",[Res, RetVal]),
 

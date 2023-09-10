@@ -72,7 +72,11 @@ eval(Bytecode,Storage,State0) ->
                        extra=>#{},
                        logger=>Logger
                       },State0#{data=>Data}),
-    eevm_interpret:run(State).
+    try
+      eevm_interpret:run(State)
+    catch throw:{revert,Bin,GasLeft}  ->
+            {done, {revert, Bin}, #{ gas=>GasLeft}}
+    end.
 
 
 eval(Bytecode,Storage,State0,Function,Args) ->
