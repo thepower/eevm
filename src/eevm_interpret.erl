@@ -857,9 +857,9 @@ call_ext(Method,
                  {revert,Bin1} ->
                    ?TRACE({callret, D, Address,revert,Bin1}),
                    throw({revert, Bin1,GasLeft});
-                 eof -> {<<"eof">>,1};
-                 stop -> {<<"stop">>,1};
-                 _ -> {<<"OTHER">>,0}
+                 eof -> {<<1>>,1};
+                 stop -> {<<1>>,1};
+                 _ -> {<<0>>,0}
                end,
   ?TRACE({callret, D, Address,Res,Bin}),
   %io:format("Callcode ret {done,~p,...} -> ~p~n",[Res, RetVal]),
