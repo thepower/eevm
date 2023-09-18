@@ -629,7 +629,7 @@ interp(CALL, #{data:=#{address:=Self}=Data,
                                              maps:get({Address,state},Xtra,#{}),
                                              Storage0)
                                           },
-                              {#{},Xtra00}
+                              {maps:get({Address,state},Xtra,#{}),Xtra00}
                  end,
            {GasLeft,
             RetCode,
