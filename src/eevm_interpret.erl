@@ -27,7 +27,7 @@
             'logger'=>function(),
             'data':=callinfo(),
             'cd':=binary(),
-            'create':=fun((Value::integer(),Code::binary(),Acc::map()) -> {#{address:=integer()},map()}), 
+            'create':=fun((Value::integer(),Code::binary(),Acc::map()) -> {#{address:=integer()},map()}),
             'get'=>#{
                      'balance'=>function(),
                      'code'=>function()
@@ -616,9 +616,6 @@ interp(CALL, #{data:=#{address:=Self}=Data,
                     Value when is_binary(Value) ->
                       {Value, OldXtra}
                   end,
-      if Code==<<>> ->
-           State#{stack=>[1|Stack],gas=>G1,return=><<0:256/big>>,extra=>Xtra};
-         true ->
            {Stor0,Xtra0}=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
                               {Storage0,Xtra};
                     true ->
@@ -668,7 +665,6 @@ interp(CALL, #{data:=#{address:=Self}=Data,
                   return=>ReturnBin,
                   memory=>RAM1,
                   extra=>NewXtra}
-      end
   end;
 
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
@@ -786,6 +782,15 @@ callinfo(call, #{address:=Address, value:=Value}, Data) ->
     callvalue=>Value
    }.
 
+call_ext(_Method,
+         <<>>,
+         Gas,
+         #{address:=Address},
+         Stor0,
+         Xtra,
+         #{depth:=D}=State) ->
+  ?TRACE({callret, D, Address,nocode,<<>>}),
+  {Gas, 1, <<>>, Xtra, Stor0};
 
 call_ext(Method=staticcall,
          Code,
@@ -796,7 +801,7 @@ call_ext(Method=staticcall,
          #{depth:=D,data:=Data}=State) ->
 
   ?TRACE({Method, D, Address,CallArgs}),
-  
+
   %#{'sload'=>fun(),'static'=>integer(),'embedded_code'=>map(),'get'=>#{'balance'=>fun(),'code'=>fun()},'trace'=>pid() | 'undefined'}
 
   case eevm:eval(Code,
@@ -832,11 +837,10 @@ call_ext(Method=staticcall,
 call_ext(Method,
          Code,
          Gas,
-         #{calldata:=CD,address:=Address}=CallArgs,
+         #{calldata:=CD,address:=Address,value:=Value}=CallArgs,
          Stor0,
          Xtra,
          #{depth:=D,data:=Data}=State) ->
-  ?TRACE({Method, D, Address,CallArgs}),
 
   {done,Res,
    #{gas:=GasLeft,
