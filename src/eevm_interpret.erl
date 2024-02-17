@@ -9,6 +9,7 @@
                           end end()).
 -define(MEM_WORDS(Bin), ((size(Bin) + 31) div 32)).
 -define(CMEM, fun() -> NewWords=(?MEM_WORDS(RAM1)-?MEM_WORDS(RAM)),(NewWords*NewWords)+(3*NewWords) end()).
+-define(INHERIT_OPTS, [bad_instruction,logger,sload,get,trace,static]).
 
 -type callinfo() :: #{
                       'address':=integer(),
@@ -50,7 +51,7 @@
                                                                        memory:=binary(),
                                                                        _ => _
                                                                       }}.
-run(#{code:=Code}=State) ->
+run(#{code:=Code}=State) when is_binary(Code) ->
   run_next(0,Code,State).
 
 allow_opcode(_, selfdestruct) -> false; %does not dupported
@@ -525,30 +526,35 @@ interp({log,0},#{stack:=[Offset,Len|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Xtra1=Logger(BValue,[],Xtra,State),
+  ?TRACE({log, BValue,[]}),
   State#{stack=>Stack,gas=>G-375,extra=>Xtra1};
 
 interp({log,1},#{stack:=[Offset,Len,Topic0|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Xtra1=Logger(BValue,[Topic0],Xtra,State),
+  ?TRACE({log, BValue,[Topic0]}),
   State#{stack=>Stack,gas=>G-750,extra=>Xtra1};
 
 interp({log,2},#{stack:=[Offset,Len,Topic0,Topic1|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Xtra1=Logger(BValue,[Topic0,Topic1],Xtra,State),
+  ?TRACE({log, BValue,[Topic0,Topic1]}),
   State#{stack=>Stack,gas=>G-1125,extra=>Xtra1};
 
 interp({log,3},#{stack:=[Offset,Len,Topic0,Topic1, Topic2|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Xtra1=Logger(BValue,[Topic0,Topic1,Topic2],Xtra,State),
+  ?TRACE({log, BValue,[Topic0,Topic1,Topic2]}),
   State#{stack=>Stack,gas=>G-1500,extra=>Xtra1};
 
 interp({log,4},#{stack:=[Offset,Len,Topic0,Topic1, Topic2, Topic3|Stack],
                  memory:=RAM,logger:=Logger, gas:=G, extra:=Xtra}=State) ->
   BValue = eevm_ram:read(RAM,Offset,Len),
   Xtra1=Logger(BValue,[Topic0,Topic1,Topic2,Topic3],Xtra,State),
+  ?TRACE({log, BValue,[Topic0,Topic1,Topic2,Topic3]}),
   State#{stack=>Stack,gas=>G-1875,extra=>Xtra1};
 
 interp(create, #{stack:=[Value,MemOff,Len|Stack],
@@ -612,59 +618,66 @@ interp(CALL, #{data:=#{address:=Self}=Data,
     true ->
       {Code,Xtra}=case GF(Address, OldXtra) of
                     {ok, Value, NewXtra1} ->
-                      {Value, NewXtra1};
+                      if is_binary(Value) ->
+                           {Value, NewXtra1};
+                         true ->
+                           {<<>>, NewXtra1}
+                      end;
                     Value when is_binary(Value) ->
                       {Value, OldXtra}
                   end,
-           {Stor0,Xtra0}=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
-                              {Storage0,Xtra};
-                    true ->
-                              Changes=[Self|maps:get(changed,Xtra,[])],
-                              Xtra00=Xtra#{changed => Changes,
-                                           {Address,state} =>
-                                           maps:merge(
-                                             maps:get({Address,state},Xtra,#{}),
-                                             Storage0)
-                                          },
-                              {maps:get({Address,state},Xtra,#{}),Xtra00}
-                 end,
-           {GasLeft,
-            RetCode,
-            ReturnBin,
-            NewXtra,
-            Stor1}=try
-                     Xtra1=case maps:is_key(cb_beforecall, State) of
-                             false -> Xtra0;
-                             true ->
-                               Fun=maps:get(cb_beforecall, State),
-                               Fun(CALL,Self,Code,GPassed, CallArgs, Xtra0)
-                           end,
+      %if is_binary(Code) -> ok;
+      %   true -> throw({no_code_for,Address})
+      %end,
+      {Stor0,Xtra0}=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
+                         {Storage0,Xtra};
+                       true ->
+                         Changes=[Self|maps:get(changed,Xtra,[])],
+                         Xtra00=Xtra#{changed => Changes,
+                                      {Address,state} =>
+                                      maps:merge(
+                                        maps:get({Address,state},Xtra,#{}),
+                                        Storage0)
+                                     },
+                         {maps:get({Address,state},Xtra,#{}),Xtra00}
+                    end,
+      {GasLeft,
+       RetCode,
+       ReturnBin,
+       NewXtra,
+       Stor1}=try
+                Xtra1=case maps:is_key(cb_beforecall, State) of
+                        false -> Xtra0;
+                        true ->
+                          Fun=maps:get(cb_beforecall, State),
+                          Fun(CALL,Self,Code,GPassed, CallArgs, Xtra0)
+                      end,
 
-                     call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra1, State)
-                   catch throw:{cancel_call,_Reason} ->
-                           {GPassed, 0, <<>>, Xtra0, Stor0}
-                   end,
-           Stor2=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
-                      Stor1;
-                    true ->
-                      Storage0
-                 end,
+                call_ext(CALL, Code, GPassed, CallArgs, Stor0, Xtra1, State)
+              catch throw:{cancel_call,_Reason} ->
+                      {GPassed, 0, <<>>, Xtra0, Stor0}
+              end,
+      Stor2=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
+                 Stor1;
+               true ->
+                 Storage0
+            end,
 
-           Burned=GPassed-GasLeft,
+      Burned=GPassed-GasLeft,
 
-           RAM1=if(size(ReturnBin)>MaxRetLen) ->
-                    <<Ret1:MaxRetLen/binary,_/binary>> = ReturnBin,
-                    eevm_ram:write(RAM,RetOff,Ret1);
-                  true ->
-                    eevm_ram:write(RAM,RetOff,ReturnBin)
-                end,
+      RAM1=if(size(ReturnBin)>MaxRetLen) ->
+               <<Ret1:MaxRetLen/binary,_/binary>> = ReturnBin,
+               eevm_ram:write(RAM,RetOff,Ret1);
+             true ->
+               eevm_ram:write(RAM,RetOff,ReturnBin)
+           end,
 
-           State#{stack=>[RetCode|Stack],
-                  gas=>G1-Burned,
-                  storage=>Stor2,
-                  return=>ReturnBin,
-                  memory=>RAM1,
-                  extra=>NewXtra}
+      State#{stack=>[RetCode|Stack],
+             gas=>G1-Burned,
+             storage=>Stor2,
+             return=>ReturnBin,
+             memory=>RAM1,
+             extra=>NewXtra}
   end;
 
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
@@ -814,7 +827,7 @@ call_ext(Method=staticcall,
                      extra=>Xtra,
                      static=>true
                     },
-                   maps:with([logger,sload,get,trace,static],State)
+                   maps:with(?INHERIT_OPTS,State)
                   )) of
     {done,Res,
      #{gas:=GasLeft,
@@ -837,7 +850,7 @@ call_ext(Method=staticcall,
 call_ext(Method,
          Code,
          Gas,
-         #{calldata:=CD,address:=Address,value:=Value}=CallArgs,
+         #{calldata:=CD,address:=Address,value:=_Value}=CallArgs,
          Stor0,
          Xtra,
          #{depth:=D,data:=Data}=State) ->
@@ -854,7 +867,7 @@ call_ext(Method,
                                      data=>callinfo(Method, CallArgs, Data),
                                      extra=>Xtra
                                     },
-                                   maps:with([logger,sload,get,trace,static],State)
+                                   maps:with(?INHERIT_OPTS,State)
                                   )),
   {Bin,RetVal}=case Res of
                  {return, Bin1} -> {Bin1,1};
