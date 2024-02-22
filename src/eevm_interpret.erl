@@ -97,7 +97,7 @@ run_next(PC, Code, #{depth:=D,gas:=Gas,stack:=Stack}=State) ->
               finish(done,{return,Data},S2);
             {error,{bad_instruction,_}=Reason,S2} ->
               finish(error,Reason,S2);
-            S2 when is_map(S2) ->
+            #{stack:=_}=S2 ->
               run_next(NextPC,Rest,S2)
           end
       end
@@ -634,12 +634,12 @@ interp(CALL, #{data:=#{address:=Self}=Data,
                        true ->
                          Changes=[Self|maps:get(changed,Xtra,[])],
                          Xtra00=Xtra#{changed => Changes,
-                                      {Address,state} =>
+                                      {Self,stor} =>
                                       maps:merge(
-                                        maps:get({Address,state},Xtra,#{}),
+                                        maps:get({Self,stor},Xtra,#{}),
                                         Storage0)
                                      },
-                         {maps:get({Address,state},Xtra,#{}),Xtra00}
+                         {maps:get({Address,stor},Xtra,#{}),Xtra00}
                     end,
       {GasLeft,
        RetCode,
@@ -657,6 +657,7 @@ interp(CALL, #{data:=#{address:=Self}=Data,
               catch throw:{cancel_call,_Reason} ->
                       {GPassed, 0, <<>>, Xtra0, Stor0}
               end,
+
       Stor2=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
                  Stor1;
                true ->
@@ -671,7 +672,17 @@ interp(CALL, #{data:=#{address:=Self}=Data,
              true ->
                eevm_ram:write(RAM,RetOff,ReturnBin)
            end,
-
+      %io:format("v-------~n"),
+      %io:format("Stor1 ~1000p~nStor2 ~1000p~n",[Storage0,Stor2]),
+      %maps:foreach(fun({_,stor}=K1,V1) ->
+      %                 io:format("xtraStor1 ~p: ~p~n",[K1,V1]);
+      %                (_,_) -> ok
+      %             end, OldXtra),
+      %maps:foreach(fun({_,stor}=K1,V1) ->
+      %                 io:format("xtraStor2 ~p: ~p~n",[K1,V1]);
+      %                (_,_) -> ok
+      %             end, NewXtra),
+      %io:format("^-------~n"),
       State#{stack=>[RetCode|Stack],
              gas=>G1-Burned,
              storage=>Stor2,
@@ -881,7 +892,7 @@ call_ext(Method,
   ?TRACE({callret, D, Address,Res,Bin}),
   %io:format("Callcode ret {done,~p,...} -> ~p~n",[Res, RetVal]),
 
-  if Stor0==Stor1 -> %state not changed
+  if Stor0==Stor1 -> %stor not changed
        {GasLeft, RetVal, Bin, Xtra1, Stor0};
      true ->
        Changes=[Address|maps:get(changed,Xtra,[])],
@@ -889,7 +900,7 @@ call_ext(Method,
         RetVal,
         Bin,
         maps:put(changed, Changes,
-                 maps:put({Address,state},Stor1,Xtra1)
+                 maps:put({Address,stor},Stor1,Xtra1)
                 ),
         Stor1
        }
