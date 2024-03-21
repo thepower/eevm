@@ -429,7 +429,7 @@ interp(sstore,#{stack:=[Key,Value|Stack], storage:=Storage, gas:=G}=State) ->
          -15000
      end,
   ?TRACE({sstore, {Key,Value,Gas}}),
-  %io:format("CAll sstore ~p~n",[{Key,Value,Gas}]),
+  %io:format("SSTORE ~s => ~s~n",[hex:encodex(Key),hex:encodex(Value)]),
   State#{stack=>Stack,storage=>St1,gas=>G-Gas};
 
 interp(jump,#{stack:=[Dst|Stack]}=State) ->
@@ -594,6 +594,7 @@ interp(CALL, #{data:=#{address:=Self}=Data,
   when CALL == call; CALL==staticcall; CALL==delegatecall; CALL==callcode ->
   #{stack:=Stack,
     return_off:=RetOff,
+    calldata:=_CD,
     return_len:=MaxRetLen}=CallArgs=call_args(CALL, Stack0, RAM),
   EmbeddedFun=maps:get(Address,maps:get(embedded_code,State,#{}),undefined),
   G1=(G0-100),
@@ -626,19 +627,18 @@ interp(CALL, #{data:=#{address:=Self}=Data,
                     Value when is_binary(Value) ->
                       {Value, OldXtra}
                   end,
-      %if is_binary(Code) -> ok;
-      %   true -> throw({no_code_for,Address})
-      %end,
-      {Stor0,Xtra0}=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
+      SameStorage=Address==Self orelse CALL==callcode orelse CALL==delegatecall,
+      {Stor0,Xtra0}=if SameStorage ->
                          {Storage0,Xtra};
                        true ->
+                         StorToSave=maps:merge(
+                                      maps:get({Self,stor},Xtra,#{}),
+                                      Storage0),
                          Changes=[Self|maps:get(changed,Xtra,[])],
-                         Xtra00=Xtra#{changed => Changes,
-                                      {Self,stor} =>
-                                      maps:merge(
-                                        maps:get({Self,stor},Xtra,#{}),
-                                        Storage0)
-                                     },
+                         Xtra00=Xtra#{
+                                  changed => Changes,
+                                  {Self,stor} => StorToSave
+                                 },
                          {maps:get({Address,stor},Xtra,#{}),Xtra00}
                     end,
       {GasLeft,
@@ -658,11 +658,22 @@ interp(CALL, #{data:=#{address:=Self}=Data,
                       {GPassed, 0, <<>>, Xtra0, Stor0}
               end,
 
-      Stor2=if Address==Self orelse CALL==callcode orelse CALL==delegatecall ->
+      Stor2=if SameStorage ->
                  Stor1;
                true ->
-                 Storage0
+                 maps:get({Self,stor},NewXtra)
             end,
+      NewXtra2=if SameStorage ->
+                    NewXtra;
+                  true ->
+                    Changes2=[Address|maps:get(changed,NewXtra,[])],
+                    NewXtra#{changed => Changes2,
+                             {Address,stor} =>
+                             maps:merge(
+                               maps:get({Address,stor},NewXtra,#{}),
+                               Stor1)
+                            }
+               end,
 
       Burned=GPassed-GasLeft,
 
@@ -672,23 +683,13 @@ interp(CALL, #{data:=#{address:=Self}=Data,
              true ->
                eevm_ram:write(RAM,RetOff,ReturnBin)
            end,
-      %io:format("v-------~n"),
-      %io:format("Stor1 ~1000p~nStor2 ~1000p~n",[Storage0,Stor2]),
-      %maps:foreach(fun({_,stor}=K1,V1) ->
-      %                 io:format("xtraStor1 ~p: ~p~n",[K1,V1]);
-      %                (_,_) -> ok
-      %             end, OldXtra),
-      %maps:foreach(fun({_,stor}=K1,V1) ->
-      %                 io:format("xtraStor2 ~p: ~p~n",[K1,V1]);
-      %                (_,_) -> ok
-      %             end, NewXtra),
-      %io:format("^-------~n"),
+
       State#{stack=>[RetCode|Stack],
              gas=>G1-Burned,
              storage=>Stor2,
              return=>ReturnBin,
              memory=>RAM1,
-             extra=>NewXtra}
+             extra=>NewXtra2}
   end;
 
 interp(revert,#{memory:=RAM,stack:=[MemOff,MemLen|Stack]}=State) ->
@@ -884,7 +885,12 @@ call_ext(Method,
                  {return, Bin1} -> {Bin1,1};
                  {revert,Bin1} ->
                    ?TRACE({callret, D, Address,revert,Bin1}),
-                   throw({revert, Bin1,GasLeft});
+                   case maps:is_key(revert_throws,State) of
+                     true ->
+                       throw({revert, Bin1,GasLeft});
+                     false ->
+                       {Bin1, 0}
+                   end;
                  eof -> {<<1>>,1};
                  stop -> {<<1>>,1};
                  _ -> {<<0>>,0}

@@ -60,10 +60,10 @@ grepn(Opcodes) ->
 
 disp(D) -> D.
 
-grep1(O,{stack, _D, _Stack}) ->
-  lists:member(stack,O);
-grep1(O,{opcode, _D, {_PC,_Inst}}) ->
-  lists:member(opcode,O);
+grep1(O,{stack, D, _Stack}) ->
+  lists:member(stack,O) orelse lists:member({stack, D}, O);
+grep1(O,{opcode, D, {_PC,_Inst}}) ->
+  lists:member(opcode,O) orelse lists:member({stack, D}, O);
 grep1(O,{Inst, _, _})when Inst==jump_ok orelse Inst==jump_error  ->
   lists:member(jmp,O);
 grep1(O,{jumpi, _}) ->
