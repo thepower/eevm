@@ -9,7 +9,7 @@
                           end end()).
 -define(MEM_WORDS(Bin), ((size(Bin) + 31) div 32)).
 -define(CMEM, fun() -> NewWords=(?MEM_WORDS(RAM1)-?MEM_WORDS(RAM)),(NewWords*NewWords)+(3*NewWords) end()).
--define(INHERIT_OPTS, [bad_instruction,logger,sload,get,trace,static]).
+-define(INHERIT_OPTS, [bad_instruction,logger,sload,get,trace,static,cb_beforecall]).
 
 -type callinfo() :: #{
                       'address':=integer(),
@@ -901,12 +901,11 @@ call_ext(Method,
   if Stor0==Stor1 -> %stor not changed
        {GasLeft, RetVal, Bin, Xtra1, Stor0};
      true ->
-       Changes=[Address|maps:get(changed,Xtra,[])],
-       {GasLeft,
-        RetVal,
-        Bin,
+       Changes=[Address|maps:get(changed,Xtra1,[])],
+       Stor2=maps:merge(maps:get({Address,stor},Xtra1,#{}),Stor1),
+       {GasLeft, RetVal, Bin,
         maps:put(changed, Changes,
-                 maps:put({Address,stor},Stor1,Xtra1)
+                 maps:put({Address,stor},Stor2,Xtra1)
                 ),
         Stor1
        }
