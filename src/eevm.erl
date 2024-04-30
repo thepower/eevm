@@ -72,6 +72,10 @@ eval(Bytecode,Storage,State0) ->
                        extra=>#{},
                        logger=>Logger
                       },State0#{data=>Data}),
+
+    %io:format("~nCall to ~s: ~s~n",[
+    %                                hex:encode(maps:get(address,maps:get(data,State))),
+    %                                hex:encode(maps:get(cd,State))]),
     try
       eevm_interpret:run(State)
     catch throw:{revert,Bin,GasLeft}  ->
