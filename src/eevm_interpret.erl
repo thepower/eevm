@@ -455,6 +455,13 @@ interp(gas, #{stack:=Stack, gas:=G}=State) ->
 interp(jumpdest,State) ->
   State;
 
+interp(mcopy,#{stack:=[DstOff,SrcOff,Size|Stack], memory:=RAM, gas:=G}=State) ->
+  ?TRACE({mcopy, {DstOff, SrcOff, Size}}),
+  Value=eevm_ram:read(RAM,SrcOff,Size),
+  RAM1=eevm_ram:write(RAM,DstOff,Value),
+  Gas=3+?CMEM+(3*((Size div 32)+if Size rem 32==0 -> 0; true -> 1 end)),
+  State#{stack=>Stack,memory=>RAM1, gas=>G-Gas};
+
 interp(push0,#{stack:=Stack, gas:=G}=State) ->
   State#{stack=>[0|Stack], gas=>G-3};
 %-=[ 0x60 ]=-

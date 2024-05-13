@@ -82,7 +82,9 @@ decode(<<16#58, Rest/binary>>) -> {pc,Rest};
 decode(<<16#59, Rest/binary>>) -> {msize,Rest};
 decode(<<16#5a, Rest/binary>>) -> {gas,Rest};
 decode(<<16#5b, Rest/binary>>) -> {jumpdest,Rest};
-
+decode(<<16#5c, Rest/binary>>) -> {tload,Rest};
+decode(<<16#5d, Rest/binary>>) -> {tstore,Rest};
+decode(<<16#5e, Rest/binary>>) -> {mcopy,Rest};
 decode(<<16#5f, Rest/binary>>) -> {push0,Rest};
 decode(<<Push, Rest/binary>>) when Push>=16#60 andalso Push<16#80 ->
   Len=Push-16#5F,
