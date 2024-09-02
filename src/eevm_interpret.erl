@@ -763,16 +763,16 @@ interp(CALL, #{data:=#{address:=Self}=Data,
              return=>ReturnBin,
              memory=>RAM1};
     true ->
-      {Code,Xtra}=case GF(Address, OldXtra) of
-%					  if is_function(GF,2) -> GF(Address, OldXtra);
-%						 is_function(GF,3) -> GF(Address, OldXtra, State)
-%					  end of
-%					  {ok, Value, NewXtra1,_} ->
-%                      if is_binary(Value) ->
-%                           {Value, NewXtra1};
-%                         true ->
-%                           {<<>>, NewXtra1}
-%					  end;
+      {Code,Xtra}=case
+					  if is_function(GF,2) -> GF(Address, OldXtra);
+						 is_function(GF,3) -> GF(Address, OldXtra, State)
+					  end of
+					  {ok, Value, NewXtra1,_} ->
+                      if is_binary(Value) ->
+                           {Value, NewXtra1};
+                         true ->
+                           {<<>>, NewXtra1}
+					  end;
                     {ok, Value, NewXtra1} ->
                       if is_binary(Value) ->
                            {Value, NewXtra1};
