@@ -19,6 +19,10 @@
                       'origin':=integer()
                      }.
 
+%sload(Address::integer(), Key::integer(), Xtra::map()) ->
+%   {'ok', Value::integer(), NewXtra::map(), 'true'|'false'}
+%sstore(Address::integea(), Key::integer(), Value::integer(), Xtra::map()) ->
+%   {'ok', NewXtra::map(), 'true'|'false'}
 
 -spec run(#{'code':=binary(),
             'gas':=integer(),
@@ -29,11 +33,26 @@
             'data':=callinfo(),
             'cd':=binary(),
             'create':=fun((Value::integer(),Code::binary(),Acc::map()) -> {#{address:=integer()},map()}),
+			'sload':=fun((Address::integer(),Key::integer(),Xtra::map(),IntState::map()) ->
+						{'ok', Value::integer(), NewXtra::map(), 'true'|'false'}) |
+					 fun((Address::integer(),Key::integer(),Xtra::map()) ->
+						{'ok', Value::integer(), NewXtra::map()}) | %legacy
+					 fun((Address::integer()) -> Value::integer()), %legacy
+            'sstore':=fun((Address::integer(),Key::integer(),Value::integer(),Xtra::map(),IntState::map()) ->
+					{'ok', NewXtra::map(), 'true'|'false'} ),
+            'custom_call':=fun(('call'|'staticcall',
+							   AddressFrom::integer(),
+							   AddressTo::integer(),
+							   Value::integer(),
+							   CallData::binary(),
+							   Gas::integer(),
+							   ExtraData::map(),
+							   IntState::map()) ->
+					{ 1|0, ReturnData::binary(), GasLeft::integer(), NewXtraData::map() }),
             'get'=>#{
                      'balance'=>function(),
                      'code'=>function()
                     },
-            'sload'=>fun(),
             'cb_beforecall' => fun(),
             'finfun' => fun(),
             'static' => integer(),
@@ -309,10 +328,30 @@ interp(gasprice, #{stack:=Stack, data:=#{gasprice:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
 
 interp(extcodesize, #{stack:=[Address|Stack],
+					  gas:=G,
+					  get:=#{code:=GF},
+					  extra:=OldXtra}=State) when is_function(GF, 3) ->
+	{Code,Xtra,_Cached}=GF(Address, OldXtra, State),
+	State#{stack=>[size(Code)|Stack], gas=>G-2600, extra=>Xtra};
+
+interp(extcodecopy, #{stack:=[Address,RAMOff,CodeOff,Len|Stack], gas:=G,
+					  memory:=RAM,
+					  get:=#{code:=GF},
+					  extra:=OldXtra}=State) when is_function(GF, 3) ->
+	{Code,Xtra,_Cached}=GF(Address, OldXtra, State),
+	Value=eevm_ram:read(Code,CodeOff,Len),
+	RAM1=eevm_ram:write(RAM,RAMOff,Value),
+	?TRACE({extcodecopy, {Len,CodeOff,RAMOff,Value}}),
+	Gas=2600+(3*(((Len+31) div 32))) + ?CMEM,
+	State#{stack=>Stack,memory=>RAM1, gas=>G-Gas, extra=>Xtra};
+
+interp(extcodesize, #{stack:=[Address|Stack],
                       gas:=G,
                       get:=#{code:=GF},
                      extra:=OldXtra}=State) ->
   {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra,_} ->
+                  {Value, NewXtra};
                 {ok, Value, NewXtra} ->
                   {Value, NewXtra};
                 Value when is_binary(Value) ->
@@ -325,6 +364,8 @@ interp(extcodecopy, #{stack:=[Address,RAMOff,CodeOff,Len|Stack], gas:=G,
                       get:=#{code:=GF},
                       extra:=OldXtra}=State) ->
   {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Val, NewXtra,_} ->
+                  {Val, NewXtra};
                 {ok, Val, NewXtra} ->
                   {Val, NewXtra};
                 Val when is_binary(Val) ->
@@ -353,6 +394,8 @@ interp(extcodehash, #{stack:=[Address|Stack],
                       get:=#{code:=GF},
                       extra:=OldXtra}=State) ->
   {Code,Xtra}=case GF(Address, OldXtra) of
+                {ok, Value, NewXtra,_} ->
+                  {Value, NewXtra};
                 {ok, Value, NewXtra} ->
                   {Value, NewXtra};
                 Value when is_binary(Value) ->
@@ -387,6 +430,53 @@ interp(mstore8,#{stack:=[Offset,Val256|Stack],memory:=RAM, gas:=G}=State) ->
   Gas=3+?CMEM,
   State#{stack=>Stack,memory=>RAM1, gas=>G-Gas};
 
+%in case of sload and sstore functions exists do not use internal storage
+%sload(Address::integer(), Key::integer(), Xtra::map()) ->
+%   {'ok', Value::integer(), NewXtra::map(), 'true'|'false'}
+%sstore(Address::integea(), Key::integer(), Value::integer(), Xtra::map()) ->
+%   {'ok', NewXtra::map(), 'true'|'false'}
+
+interp(sload,#{stack:=[Key|Stack], data:=#{address:=Addr},
+               gas:=G,
+               sload:=SLoad, sstore:=SStore,
+			   extra:=Xtra}=State) when
+	  is_function(SLoad, 4), is_function(SStore, 5) ->
+	case SLoad(Addr, Key, Xtra, State) of
+		{ok, Value, NewXtra, IsCold } ->
+			?TRACE({sload, {Key,Value}}),
+			Gas1=case IsCold of
+					 true -> G-2100;
+					 false -> G-800
+				 end,
+			State#{stack=>[Value|Stack],
+				   gas=>Gas1,
+				   extra=>NewXtra}
+	end;
+
+interp(sstore,#{stack:=[Key,Value|Stack], data:=#{address:=Addr},
+				gas:=G,
+				sload:=SLoad, sstore:=SStore,
+				extra:=Xtra}=State) when
+	  is_function(SLoad, 4), is_function(SStore, 5) ->
+	case SStore(Addr, Key, Value, Xtra, State) of
+		{ok, NewXtra, PreExists } ->
+			Gas=case {PreExists, Value=/=0} of
+					{false,true} ->
+						20000;
+					{true,true} ->
+						5000;
+					{false,false} ->
+						800;
+					{true,false} ->
+						-15000
+				end,
+			?TRACE({sstore, {Key,Value,Gas}}),
+			%io:format("SSTORE ~s => ~s~n",[hex:encodex(Key),hex:encodex(Value)]),
+			State#{stack=>Stack,
+				   gas=>G-Gas,
+				   extra=>NewXtra}
+	end;
+
 %in case of sload function defined we can load data from external database
 interp(sload,#{stack:=[Key|Stack],storage:=Storage, data:=#{address:=Addr},
                gas:=G,
@@ -402,6 +492,9 @@ interp(sload,#{stack:=[Key|Stack],storage:=Storage, data:=#{address:=Addr},
       Res=loadhelper(LoadFun, Addr, Key, Xtra),
       case Res of
         {ok, Value, NewXtra} ->
+          ?TRACE({sload, {Key,Value}}),
+          State#{stack=>[Value|Stack],storage=>maps:put(Key,Value,Storage),gas=>G-2100,extra=>NewXtra};
+        {ok, Value, NewXtra,_} ->
           ?TRACE({sload, {Key,Value}}),
           State#{stack=>[Value|Stack],storage=>maps:put(Key,Value,Storage),gas=>G-2100,extra=>NewXtra};
         Value when is_integer(Value) ->
@@ -591,6 +684,52 @@ interp(return,#{stack:=[Off,Len|Stack], memory:=RAM}=State) ->
   ?TRACE({return, Value}),
   {return,Value,State#{stack=>Stack}};
 
+interp(CALL, #{data:=#{address:=From},
+               stack:=Stack0,
+			   custom_call:=CustomCall,
+               memory:=RAM,
+               extra:=OldXtra,
+               gas:=G0}=State)
+  when (CALL == call
+		orelse CALL==staticcall
+		orelse CALL==delegatecall
+		orelse CALL==callcode)
+	   andalso is_function(CustomCall, 7) ->
+  #{stack:=Stack,
+    return_off:=RetOff,
+    calldata:=CallData,
+	gas:=PassGas,
+	address:=Address,
+	value:=Value,
+    return_len:=MaxRetLen}=call_args(CALL, Stack0, RAM),
+  G1=(G0-100),
+  KeepGas=G1 div 64,
+  GPassed=min(G1-KeepGas,PassGas),
+
+  % CustomCall(call|staticcall, AddressFrom, AddressTo, Value, CallData, Gas, Xtra) ->
+  % { 1|0, <<ReturnData/binary>>, GasLeft, Xtra }
+
+  { RetCode,
+	ReturnBin,
+	GasLeft,
+	NewXtra } = CustomCall(CALL, From, Address, Value, CallData,  GPassed, OldXtra),
+
+  Burned=GPassed-GasLeft,
+
+  RAM1=if(size(ReturnBin)>MaxRetLen) ->
+			 <<Ret1:MaxRetLen/binary,_/binary>> = ReturnBin,
+			 eevm_ram:write(RAM,RetOff,Ret1);
+		 true ->
+			 eevm_ram:write(RAM,RetOff,ReturnBin)
+	   end,
+
+  State#{stack=>[RetCode|Stack],
+		 gas=>G1-Burned,
+		 return=>ReturnBin,
+		 memory=>RAM1,
+		 extra=>NewXtra};
+
+
 interp(CALL, #{data:=#{address:=Self}=Data,
                storage:=Storage0,
                stack:=[PassGas,Address|_]=Stack0,
@@ -625,6 +764,15 @@ interp(CALL, #{data:=#{address:=Self}=Data,
              memory=>RAM1};
     true ->
       {Code,Xtra}=case GF(Address, OldXtra) of
+%					  if is_function(GF,2) -> GF(Address, OldXtra);
+%						 is_function(GF,3) -> GF(Address, OldXtra, State)
+%					  end of
+%					  {ok, Value, NewXtra1,_} ->
+%                      if is_binary(Value) ->
+%                           {Value, NewXtra1};
+%                         true ->
+%                           {<<>>, NewXtra1}
+%					  end;
                     {ok, Value, NewXtra1} ->
                       if is_binary(Value) ->
                            {Value, NewXtra1};

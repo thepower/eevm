@@ -27,6 +27,8 @@ stop(_State) ->
                       },
              'cd'=>binary(),
              'sload'=>function(),
+             'sstore'=>function(),
+			 'custom_call' => function(),
              'finfun'=>function(),
              'static' => integer(),
              'embedded_code'=>map(),
