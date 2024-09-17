@@ -280,12 +280,21 @@ interp(sha3, #{stack:=[Off,Len|Stack],memory:=RAM, gas:=G}=State) ->
 interp(address, #{stack:=Stack, data:=#{address:=A}, gas:=G}=State) ->
   State#{stack=>[A|Stack], gas=>G-2};
 
-interp(balance, #{stack:=[Address|Stack], gas:=G, get:=#{balance:=GF}, extra:=Xtra}=State) ->
+interp(balance, #{stack:=[Address|Stack], gas:=G, get:=#{balance:=GF}, extra:=Xtra}=State)
+				  when is_function(GF, 2) -> %legacy
   case GF(Address, Xtra) of
     {ok, Value, NewXtra} ->
       State#{stack=>[Value|Stack], gas=>G-100, extra=>NewXtra};
     Value when is_integer(Value) ->
       State#{stack=>[Value|Stack], gas=>G-100}
+  end;
+
+
+interp(balance, #{stack:=[Address|Stack], gas:=G, get:=#{balance:=GF}, extra:=Xtra}=State)
+  when is_function(GF, 3) ->
+  case GF(Address, Xtra, State) of
+    {ok, Value, NewXtra, _Cached} ->
+      State#{stack=>[Value|Stack], gas=>G-100, extra=>NewXtra}
   end;
 
 interp(origin, #{stack:=Stack, data:=#{origin:=A}, gas:=G}=State) ->
@@ -331,14 +340,14 @@ interp(extcodesize, #{stack:=[Address|Stack],
 					  gas:=G,
 					  get:=#{code:=GF},
 					  extra:=OldXtra}=State) when is_function(GF, 3) ->
-	{Code,Xtra,_Cached}=GF(Address, OldXtra, State),
+	{ok, Code, Xtra,_Cached}=GF(Address, OldXtra, State),
 	State#{stack=>[size(Code)|Stack], gas=>G-2600, extra=>Xtra};
 
 interp(extcodecopy, #{stack:=[Address,RAMOff,CodeOff,Len|Stack], gas:=G,
 					  memory:=RAM,
 					  get:=#{code:=GF},
 					  extra:=OldXtra}=State) when is_function(GF, 3) ->
-	{Code,Xtra,_Cached}=GF(Address, OldXtra, State),
+	{ok, Code,Xtra,_Cached}=GF(Address, OldXtra, State),
 	Value=eevm_ram:read(Code,CodeOff,Len),
 	RAM1=eevm_ram:write(RAM,RAMOff,Value),
 	?TRACE({extcodecopy, {Len,CodeOff,RAMOff,Value}}),
@@ -689,12 +698,13 @@ interp(CALL, #{data:=#{address:=From},
 			   custom_call:=CustomCall,
                memory:=RAM,
                extra:=OldXtra,
+			   depth:=D,
                gas:=G0}=State)
   when (CALL == call
 		orelse CALL==staticcall
 		orelse CALL==delegatecall
 		orelse CALL==callcode)
-	   andalso is_function(CustomCall, 7) ->
+	   andalso is_function(CustomCall, 8) ->
   #{stack:=Stack,
     return_off:=RetOff,
     calldata:=CallData,
@@ -712,7 +722,9 @@ interp(CALL, #{data:=#{address:=From},
   { RetCode,
 	ReturnBin,
 	GasLeft,
-	NewXtra } = CustomCall(CALL, From, Address, Value, CallData,  GPassed, OldXtra),
+	NewXtra } = CustomCall(CALL, From, Address, Value, CallData,  GPassed, OldXtra, State),
+
+  ?TRACE({callret, D, Address,RetCode,ReturnBin}),
 
   Burned=GPassed-GasLeft,
 
