@@ -464,6 +464,7 @@ interp(sload,#{stack:=[Key|Stack], data:=#{address:=Addr},
 
 interp(sstore,#{stack:=[Key,Value|Stack], data:=#{address:=Addr},
 				gas:=G,
+				gas_max:=GasMax,
 				sload:=SLoad, sstore:=SStore,
 				extra:=Xtra}=State) when
 	  is_function(SLoad, 4), is_function(SStore, 5) ->
@@ -482,7 +483,7 @@ interp(sstore,#{stack:=[Key,Value|Stack], data:=#{address:=Addr},
 			?TRACE({sstore, {Key,Value,Gas}}),
 			%io:format("SSTORE ~s => ~s~n",[hex:encodex(Key),hex:encodex(Value)]),
 			State#{stack=>Stack,
-				   gas=>G-Gas,
+				   gas=>min(G-Gas,GasMax),
 				   extra=>NewXtra}
 	end;
 

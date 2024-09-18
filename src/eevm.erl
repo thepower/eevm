@@ -72,6 +72,7 @@ eval(Bytecode,Storage,State0) ->
                        code=>Bytecode,
                        depth=>0,
                        extra=>#{},
+                       gas_max=>maps:get(gas,State0,0),
                        logger=>Logger
                       },State0#{data=>Data}),
 
