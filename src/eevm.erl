@@ -36,7 +36,7 @@ stop(_State) ->
                       'balance'=>function(),
                       'code'=>function()
                      },
-             'trace'=>pid()|undefined
+             'trace'=>pid()|function()|undefined
             }) ->
   {'done', 'stop'|invalid|{revert,binary()}|{return,binary()}, #{
                                                                  gas:=integer(),

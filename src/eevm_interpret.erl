@@ -5,6 +5,8 @@
                           case maps:get(trace,State,undefined) of
                             PID when is_pid(PID) ->
                               PID ! {trace, Code};
+                            FUN when is_function(FUN,1) ->
+                              FUN(Code);
                             undefined -> ok
                           end end()).
 -define(MEM_WORDS(Bin), ((size(Bin) + 31) div 32)).
@@ -142,7 +144,13 @@ interp(mul,#{stack:=[A,B|Stack], gas:=G}=State) ->
   State#{stack=>[Res|Stack], gas=>G-5};
 
 interp(sub,#{stack:=[A,B|Stack], gas:=G}=State) ->
-  State#{stack=>[A - B|Stack], gas=>G-3};
+	Res=case A-B of
+		  R when R>=0 -> R;
+		  R ->
+			%binary:decode_unsigned(<<R:256/big-signed>>)
+			16#FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF-R
+	  end,
+  State#{stack=>[Res|Stack], gas=>G-3};
 
 interp('div',#{stack:=[_,0|Stack], gas:=G}=State) ->
   State#{stack=>[0|Stack], gas=>G-5};
@@ -720,6 +728,8 @@ interp(CALL, #{data:=#{address:=From},
   % CustomCall(call|staticcall, AddressFrom, AddressTo, Value, CallData, Gas, Xtra) ->
   % { 1|0, <<ReturnData/binary>>, GasLeft, Xtra }
 
+
+  ?TRACE({call, D, CALL, From, Address, Value, CallData}),
   { RetCode,
 	ReturnBin,
 	GasLeft,
