@@ -136,11 +136,11 @@ interp(stop,State) ->
   {fin, stop, State};
 
 interp(add,#{stack:=[A,B|Stack], gas:=G}=State) ->
-  Res=A+B,
+  Res=(A+B) band 16#ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff,
   State#{stack=>[Res|Stack],gas=>G-3};
 
 interp(mul,#{stack:=[A,B|Stack], gas:=G}=State) ->
-  Res=A*B,
+  Res=(A*B) band 16#ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff,
   State#{stack=>[Res|Stack], gas=>G-5};
 
 interp(sub,#{stack:=[A,B|Stack], gas:=G}=State) ->
