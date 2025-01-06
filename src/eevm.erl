@@ -69,6 +69,7 @@ eval(Bytecode,Storage,State0) ->
                        cd => <<>>,
                        storage=>Storage,
                        memory=><<>>,
+                       return=><<>>,
                        code=>Bytecode,
                        depth=>0,
                        extra=>#{},
