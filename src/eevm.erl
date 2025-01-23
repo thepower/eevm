@@ -81,7 +81,7 @@ eval(Bytecode,Storage,State0) ->
     %                                hex:encode(maps:get(address,maps:get(data,State))),
     %                                hex:encode(maps:get(cd,State))]),
     try
-      eevm_interpret:run(State)
+      eevm_interpret:run(State#{gas_min=>maps:get(gas,State,0)})
     catch throw:{revert,Bin,GasLeft}  ->
             {done, {revert, Bin}, #{ gas=>GasLeft}}
     end.
@@ -94,4 +94,3 @@ eval(Bytecode,Storage,State0,Function,Args) ->
                      <<Acc/binary,Arg:256/big>>
                  end, << IFun:32/big>>, Args),
     eval(Bytecode,Storage,maps:merge(State0, #{ cd => CallData })).
-

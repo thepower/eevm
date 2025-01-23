@@ -28,6 +28,7 @@
 
 -spec run(#{'code':=binary(),
             'gas':=integer(),
+            'gas_min':=integer(),
             'stack':=list(),
             'memory':=binary(),
             'storage':=map(),
@@ -64,6 +65,7 @@
 }) ->
   {'done', 'stop'|'invalid'|{'revert',binary()}|{'return',binary()}, #{
                                                                        gas:=integer(),
+                                                                       gas_min:=integer(),
                                                                        storage:=#{},
                                                                        memory:=binary(),
                                                                        _ => _}}
@@ -473,6 +475,7 @@ interp(sload,#{stack:=[Key|Stack], data:=#{address:=Addr},
 interp(sstore,#{stack:=[Key,Value|Stack], data:=#{address:=Addr},
 				gas:=G,
 				gas_max:=GasMax,
+				gas_min:=GasMin,
 				sload:=SLoad, sstore:=SStore,
 				extra:=Xtra}=State) when
 	  is_function(SLoad, 4), is_function(SStore, 5) ->
@@ -490,9 +493,7 @@ interp(sstore,#{stack:=[Key,Value|Stack], data:=#{address:=Addr},
 				end,
 			?TRACE({sstore, {Key,Value,Gas}}),
 			%io:format("SSTORE ~s => ~s~n",[hex:encodex(Key),hex:encodex(Value)]),
-			State#{stack=>Stack,
-				   gas=>min(G-Gas,GasMax),
-				   extra=>NewXtra}
+			State#{ stack=>Stack, gas=>min(G-Gas,GasMax), gas_min=>min(G,min(G-Gas,GasMin)), extra=>NewXtra }
 	end;
 
 %in case of sload function defined we can load data from external database
@@ -1088,4 +1089,3 @@ call_ext(Method,
         Stor1
        }
   end.
-
